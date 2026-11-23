@@ -32,6 +32,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.annotation.Transactional;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -121,6 +122,70 @@ class UserProfileApiIntegrationTest {
         if (created) {
             drop(database);
         }
+    }
+
+    @Test
+    @Transactional
+    void adminDirectoryPaginatesAndCountsOnlyExistingReviewsAndApprovedRequests() throws Exception {
+        String endpoint = "/api/admin/users";
+        mvc.perform(get(endpoint)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isForbidden());
+        jdbc.update("""
+                INSERT INTO user_roles(user_id,role_id) SELECT 11,id FROM roles WHERE code='ROLE_ADMIN'
+                """);
+        jdbc.update("UPDATE users SET username='profileXother',avatar_file_id=301 WHERE id=22");
+        jdbc.update("INSERT INTO restaurants(id,name,category_code) VALUES(71,'测试店','OTHER')");
+        profileReview(101, 71, 22, "2026-11-01 00:00:00");
+        profileReview(102, 71, 22, "2026-11-02 00:00:00");
+        profileReview(103, 71, 22, "2026-11-03 00:00:00");
+        jdbc.update("DELETE FROM reviews WHERE id=103");
+        jdbc.update("""
+                INSERT INTO restaurant_change_requests
+                (restaurant_id, request_type, submitted_by, client_request_id, request_hash, proposed_data,
+                 status, approval_mode, reviewed_by, reviewed_at, approved_data, before_data)
+                VALUES
+                (71, 'CREATE', 22, UUID(), UNHEX(SHA2('create',256)), '{}',
+                 'APPROVED', 'CREATED', 11, CURRENT_TIMESTAMP(6), '{}', NULL),
+                (71, 'UPDATE', 22, UUID(), UNHEX(SHA2('update',256)), '{}',
+                 'APPROVED', 'UPDATED', 11, CURRENT_TIMESTAMP(6), '{}', '{}'),
+                (71, 'CREATE', 22, UUID(), UNHEX(SHA2('link',256)), '{}',
+                 'APPROVED', 'LINKED_EXISTING', 11, CURRENT_TIMESTAMP(6), '{}', NULL),
+                (NULL, 'CREATE', 22, UUID(), UNHEX(SHA2('pending',256)), '{}',
+                 'PENDING', NULL, NULL, NULL, NULL, NULL)
+                """);
+
+        var first = mvc.perform(get(endpoint).param("keyword", " profile ").param("pageSize", "1")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.records[0].id").value("22"))
+                .andExpect(jsonPath("$.data.records[0].username").value("profileXother"))
+                .andExpect(jsonPath("$.data.records[0].hasAvatar").value(true))
+                .andExpect(jsonPath("$.data.records[0].reviewCount").value(2))
+                .andExpect(jsonPath("$.data.records[0].approvedSubmissionCount").value(3))
+                .andReturn();
+        assertThat(json.readTree(first.getResponse().getContentAsString()).get("data")
+                .get("records").get(0).size()).isEqualTo(5);
+        mvc.perform(get(endpoint).param("page", "2").param("pageSize", "1")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].id").value("11"))
+                .andExpect(jsonPath("$.data.records[0].hasAvatar").value(false))
+                .andExpect(jsonPath("$.data.records[0].reviewCount").value(0))
+                .andExpect(jsonPath("$.data.records[0].approvedSubmissionCount").value(0));
+        mvc.perform(get(endpoint).param("keyword", "file_").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value("11"));
+        mvc.perform(get(endpoint).param("keyword", "missing").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.records").isEmpty());
+        mvc.perform(get(endpoint).param("pageSize", "51").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isBadRequest());
     }
 
     /** 登录用户能读他人主页，但任何私有账号/奖励/申请字段均不得随聚合响应泄露。 */

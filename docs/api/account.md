@@ -17,12 +17,37 @@
 | GET | `/auth/me` | Bearer | 200 | [当前身份与退出](#identity-logout) |
 | POST | `/auth/logout` | Bearer | 200 | [当前身份与退出](#identity-logout) |
 | GET | `/api/admin/me` | 管理员 | 200 | [工作台身份校验](#admin-session) |
+| GET | `/api/admin/users` | 管理员 | 200 | [管理端用户查询](#admin-user-directory) |
 | GET | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
 | PATCH / PUT | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
 | PATCH | `/api/me/profile/username` | Bearer | 200 | [修改用户名](#username) |
 | PUT | `/api/me/avatar` | Bearer | 204 | [用户头像](#avatar) |
 | GET | `/api/users/{userId}/avatar` | 公开 | 200 JPEG / 204 | [用户头像](#avatar) |
 | GET | `/api/me/growth` | Bearer | 200 | [本人成长摘要](#growth) |
+
+<a id="admin-user-directory"></a>
+
+## 管理端用户查询
+
+**接口与权限**
+
+`GET /api/admin/users` 需要具有 `ROLE_ADMIN` 的有效 Bearer 会话。成功响应带 `Cache-Control: no-store`。
+
+**请求参数**
+
+可选 `keyword` 长度最多 32，去除首尾空白后匹配用户名中包含的文字。空白查全部。可选 `page` 默认 1，范围 1–1,000,000。可选 `pageSize` 默认 20，范围 1–50。按用户 ID 倒序，不列出已删除账号。
+
+**响应**
+
+```json
+{"records":[{"id":"22","username":"校园食客","hasAvatar":true,"reviewCount":4,"approvedSubmissionCount":2}],"total":1,"page":1,"pageSize":20,"totalPages":1}
+```
+
+`hasAvatar` 表示有绑定头像，可以通过[头像接口](#avatar)读取。点评数按仍保留的正式点评计，同一店的历史点评各算一条，待审附带点评不计入。投稿审核通过数包括通过的新店投稿、资料纠错和已收录关联。空结果返回空数组。
+
+**错误码**
+
+鉴权失败 401，普通账号 403，无效参数 400。错误格式见[通用错误](common.md#errors)。
 
 <a id="avatar"></a>
 

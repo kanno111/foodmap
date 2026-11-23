@@ -10,6 +10,18 @@ import java.util.List;
 /** 仅访问restaurant模块的申请和图片关系；不跨模块JOIN账号或文件表。 */
 @Mapper
 public interface RestaurantRequestReadMapper {
+    @Select("""
+            <script>
+            SELECT submitted_by, COUNT(*) AS total FROM restaurant_change_requests
+            WHERE status = 'APPROVED' AND submitted_by IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            GROUP BY submitted_by
+            </script>
+            """)
+    List<SubmitterCount> countApprovedBySubmitters(@Param("ids") List<Long> ids);
+
+    record SubmitterCount(long submittedBy, long total) {}
+
     /** 按状态/关键字过滤后稳定排序分页，只返回管理列表必需列。 */
     List<RestaurantRequestListEntity> page(@Param("query") RestaurantRequestQuery query, @Param("offset") long offset);
     /** 与分页复用关键字条件，统计三个状态，供标签数量和当前状态总页数使用。 */

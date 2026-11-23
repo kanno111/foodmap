@@ -19,11 +19,13 @@ import com.foodmap.user.service.PublicAuthorService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /** 点评公开读取流程；父店、计数、主卡及作者/照片均来自同一只读快照。 */
@@ -36,6 +38,16 @@ public class ReviewReadService {
     private final ReviewPhotoMapper photos;
     private final PublicAuthorService authors;
     private final GrowthQueryService growth;
+
+    /** 所有已发布且仍保留的记录均计数，同一店的历史点评也各算一条。 */
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<Long, Long> countByAuthors(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return mapper.countByAuthors(ids).stream().collect(Collectors.toMap(
+                ReviewReadMapper.AuthorCount::authorUserId, ReviewReadMapper.AuthorCount::total));
+    }
 
     /** 不持写锁，不访问OSS；默认排序在分页前批量取得等级，空页省去批量补全查询。 */
     public ReviewPageVo list(String restaurantId, ReviewListQuery query) {

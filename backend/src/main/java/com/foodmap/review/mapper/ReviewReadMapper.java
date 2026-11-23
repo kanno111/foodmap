@@ -12,6 +12,18 @@ import java.util.List;
 /** 只读reviews；先选每人的最新代表再分页，历史深度不会改变主卡数量。 */
 @Mapper
 public interface ReviewReadMapper {
+    @Select("""
+            <script>
+            SELECT author_user_id, COUNT(*) AS total FROM reviews
+            WHERE author_user_id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            GROUP BY author_user_id
+            </script>
+            """)
+    List<AuthorCount> countByAuthors(@Param("ids") List<Long> ids);
+
+    record AuthorCount(long authorUserId, long total) {}
+
     String READ_COLUMNS =
             "id,author_user_id,taste_score,value_score,service_score,ambience_score,overall_score,recommendation"
                 + ",body,created_at";
