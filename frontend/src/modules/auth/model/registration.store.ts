@@ -17,20 +17,24 @@ export const useRegistrationStore = defineStore('registration', () => {
   const sendingCode = ref(false)
   const registering = ref(false)
   const registered = ref(false)
+  const sendError = ref<string | null>(null)
   const error = ref<string | null>(null)
+  let sendGeneration = 0
 
   /** 发送验证码并用布尔值告知表单是否可以启动倒计时。 */
   async function sendCode(email: string): Promise<boolean> {
+    if (sendingCode.value || registering.value || registered.value) return false
+    const generation = ++sendGeneration
     sendingCode.value = true
-    error.value = null
+    sendError.value = null
     try {
       await sendRegistrationCode(email)
-      return true
+      return generation === sendGeneration
     } catch (reason) {
-      error.value = toErrorMessage(reason)
+      if (generation === sendGeneration) sendError.value = toErrorMessage(reason)
       return false
     } finally {
-      sendingCode.value = false
+      if (generation === sendGeneration) sendingCode.value = false
     }
   }
 
@@ -61,11 +65,23 @@ export const useRegistrationStore = defineStore('registration', () => {
 
   /** 每次重新进入注册页时清除上一次页面会话的结果，不保留跨页面注册状态。 */
   function reset() {
+    sendGeneration++
     sendingCode.value = false
     registering.value = false
     registered.value = false
+    sendError.value = null
     error.value = null
   }
 
-  return { sendingCode, registering, registered, error, sendCode, submit, clearError, reset }
+  return {
+    sendingCode,
+    registering,
+    registered,
+    sendError,
+    error,
+    sendCode,
+    submit,
+    clearError,
+    reset,
+  }
 })

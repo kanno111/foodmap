@@ -45,11 +45,13 @@ function checkField(field: string) {
 function clearField(field: string) {
   errors[field] = null
   registrationStore.clearError()
+  if (field === 'email') registrationStore.sendError = null
   if (field === 'password' && form.confirmPassword) {
     errors.confirm = form.confirmPassword === form.password ? null : '两次输入的密码不一致'
   }
 }
 const cooldown = ref(0)
+let active = true
 let cooldownTimer: ReturnType<typeof globalThis.setInterval> | undefined
 
 // 后缀固定展示与拼接，用户仅输入邮箱前缀，完整邮箱仍由服务端校验。
@@ -73,18 +75,25 @@ function startCooldown() {
 }
 
 async function handleSendCode() {
+  if (cooldown.value > 0) return
+  registrationStore.sendError = null
   registrationStore.clearError()
   const normalizedEmail = campusEmail.value.toLowerCase()
   checkField('email')
   if (errors.email) return
 
-  if (await registrationStore.sendCode(normalizedEmail)) {
+  if ((await registrationStore.sendCode(normalizedEmail)) && active) {
     startCooldown()
   }
 }
 
 async function handleSubmit() {
-  if (registrationStore.registering || registrationStore.registered) return
+  if (
+    registrationStore.sendingCode ||
+    registrationStore.registering ||
+    registrationStore.registered
+  )
+    return
   registrationStore.clearError()
   for (const field of ['email', 'code', 'username', 'password', 'confirm']) checkField(field)
   if (Object.values(errors).some(Boolean)) return
@@ -105,6 +114,7 @@ async function handleSubmit() {
 }
 
 onBeforeUnmount(() => {
+  active = false
   if (cooldownTimer) globalThis.clearInterval(cooldownTimer)
 })
 </script>
@@ -127,7 +137,7 @@ onBeforeUnmount(() => {
             autocomplete="off"
             autocapitalize="none"
             spellcheck="false"
-            :disabled="registrationStore.registered"
+            :disabled="registrationStore.sendingCode || registrationStore.registered"
             :aria-invalid="!!fieldError('email')"
             :aria-describedby="
               fieldError('email') ? 'email-suffix register-email-error' : 'email-suffix'
@@ -140,7 +150,13 @@ onBeforeUnmount(() => {
         <button
           class="code-button"
           type="button"
-          :disabled="registrationStore.sendingCode || cooldown > 0 || registrationStore.registered"
+          :disabled="
+            registrationStore.sendingCode ||
+            registrationStore.registering ||
+            cooldown > 0 ||
+            registrationStore.registered
+          "
+          :aria-describedby="registrationStore.sendError ? 'register-send-error' : undefined"
           @click="handleSendCode"
         >
           {{ codeButtonText }}
@@ -150,7 +166,16 @@ onBeforeUnmount(() => {
       <p v-if="fieldError('email')" id="register-email-error" class="field-error" role="alert">
         {{ fieldError('email') }}
       </p>
-      <small>验证码5分钟内有效，同一邮箱60秒内只能发送一次。</small>
+      <p
+        v-if="registrationStore.sendError"
+        id="register-send-error"
+        class="send-code-error"
+        role="alert"
+      >
+        <span aria-hidden="true">!</span>
+        {{ registrationStore.sendError }}
+      </p>
+      <small v-else>验证码5分钟内有效，同一邮箱60秒内只能发送一次。</small>
     </div>
 
     <div class="form-field">
@@ -158,6 +183,7 @@ onBeforeUnmount(() => {
       <input
         id="register-code"
         v-model="form.verificationCode"
+        class="verification-code-input"
         type="text"
         inputmode="numeric"
         autocomplete="one-time-code"
@@ -249,7 +275,11 @@ onBeforeUnmount(() => {
     <button
       class="submit-button"
       type="submit"
-      :disabled="registrationStore.registering || registrationStore.registered"
+      :disabled="
+        registrationStore.sendingCode ||
+        registrationStore.registering ||
+        registrationStore.registered
+      "
     >
       {{ registrationStore.registering ? '正在创建账号…' : '创建账号' }}
     </button>

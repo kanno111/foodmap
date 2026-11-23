@@ -43,7 +43,25 @@ describe('registration store', () => {
 
     await expect(store.sendCode(request.email)).resolves.toBe(false)
 
-    expect(store.error).toBe('验证码发送失败')
+    expect(store.sendError).toBe('验证码发送失败')
+    expect(store.error).toBeNull()
+    expect(store.sendingCode).toBe(false)
+  })
+
+  it('ignores a send failure from a previous registration page', async () => {
+    let fail!: (error: Error) => void
+    vi.mocked(sendRegistrationCode).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        fail = reject
+      }),
+    )
+    const store = useRegistrationStore()
+    const previous = store.sendCode(request.email)
+    store.reset()
+    fail(new Error('验证码发送失败'))
+
+    await expect(previous).resolves.toBe(false)
+    expect(store.sendError).toBeNull()
     expect(store.sendingCode).toBe(false)
   })
 

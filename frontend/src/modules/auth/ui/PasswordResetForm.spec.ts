@@ -122,8 +122,9 @@ describe('password reset form', () => {
     fill()
     await submit()
     await vi.waitFor(() =>
-      expect(host.querySelector('[role="alert"]')?.textContent).toContain('验证码错误或已失效'),
+      expect(host.querySelector('#reset-code-error')?.textContent).toContain('验证码错误或已失效'),
     )
+    expect(host.querySelector('#reset-send-error')).toBeNull()
     expect(getAccessToken()).toBe('old-session')
     expect(host.querySelector<HTMLInputElement>('#reset-password')?.value).toBe('')
     expect(host.querySelector<HTMLInputElement>('#reset-confirm-password')?.value).toBe('')
@@ -165,16 +166,27 @@ describe('password reset form', () => {
     expect(send.textContent).toContain('发送验证码')
   })
 
-  it('allows retry after code delivery fails without starting a cooldown', async () => {
-    vi.mocked(sendPasswordResetCode).mockRejectedValue(new Error('邮件发送失败'))
-    fill()
-    host.querySelector<HTMLButtonElement>('.code-button')!.click()
-    await vi.waitFor(() =>
-      expect(host.querySelector('[role="alert"]')?.textContent).toContain('邮件发送失败'),
-    )
-    expect(host.querySelector<HTMLButtonElement>('.code-button')?.disabled).toBe(false)
-    expect(host.textContent).not.toContain('秒后重试')
-  })
+  it.each(['验证码邮件发送失败', '该邮箱发送次数过多', 'Network Error'])(
+    'shows %s beside the send button and allows retry',
+    async (message) => {
+      vi.mocked(sendPasswordResetCode).mockRejectedValueOnce(new Error(message)).mockResolvedValue()
+      fill()
+      const send = host.querySelector<HTMLButtonElement>('.code-button')!
+      send.click()
+      await vi.waitFor(() =>
+        expect(host.querySelector('#reset-send-error')?.textContent).toContain(message),
+      )
+      expect(send.getAttribute('aria-describedby')).toBe('reset-send-error')
+      expect(host.querySelector('#reset-code-error')).toBeNull()
+      expect(host.querySelector('#reset-email-error')).toBeNull()
+      expect(send.disabled).toBe(false)
+      expect(host.textContent).not.toContain('秒后重试')
+
+      send.click()
+      await vi.waitFor(() => expect(send.textContent).toContain('秒后重试'))
+      expect(host.querySelector('#reset-send-error')).toBeNull()
+    },
+  )
 
   it('blocks duplicate submissions while a reset request is pending', async () => {
     let finish!: (value: { username: string }) => void
