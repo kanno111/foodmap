@@ -26,7 +26,7 @@ public class UserProfileController {
     public ResponseEntity<ApiResponse<UserProfileVo>> get() {
         return response(profiles.get(actors.requireActor().getUserId()));
     }
-    @PatchMapping
+    @RequestMapping(method = {RequestMethod.PATCH, RequestMethod.PUT})
     public ResponseEntity<ApiResponse<UserProfileVo>> update(@Valid @RequestBody UserProfileUpdateRequest request) {
         return response(profiles.update(actors.requireActor().getUserId(), request.getBio()));
     }

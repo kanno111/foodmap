@@ -1,0 +1,74 @@
+<view class="page login-page">
+  <view class="ambient">
+    <view class="ambient-blob ambient-a"></view>
+    <view class="ambient-blob ambient-b"></view>
+    <view class="ambient-blob ambient-c"></view>
+  </view>
+
+  <view class="login-hero">
+    <view class="login-mark">G</view>
+    <view class="login-title">账号登录</view>
+  </view>
+
+  <view class="card login-card">
+    <view class="login-modes">
+      <button class="login-mode {{mode === 'account' ? 'active' : ''}}" data-mode="account" disabled="{{submitting}}" bindtap="changeMode">用户名 / 邮箱</button>
+      <button class="login-mode {{mode === 'student' ? 'active' : ''}}" data-mode="student" disabled="{{submitting}}" bindtap="changeMode">学号</button>
+    </view>
+    <view class="field">
+      <view class="field-label">{{mode === 'student' ? '学号' : '用户名或邮箱'}}</view>
+      <view class="field-shell">
+        <input
+          class="field-input"
+          type="{{mode === 'student' ? 'number' : 'text'}}"
+          confirm-type="next"
+          placeholder="{{mode === 'student' ? '请输入学号' : '请输入用户名或邮箱'}}"
+          placeholder-class="field-placeholder"
+          maxlength="{{mode === 'student' ? studentMaxLength : 254}}"
+          value="{{mode === 'student' ? studentNumber : account}}"
+          bindinput="onAccountInput"
+        />
+        <text wx:if="{{mode === 'student'}}" class="login-suffix">{{campusEmailSuffix}}</text>
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="field-label">密码</view>
+      <view class="field-shell">
+        <input
+          class="field-input"
+          type="text"
+          password
+          confirm-type="done"
+          placeholder="请输入密码"
+          placeholder-class="field-placeholder"
+          maxlength="72"
+          value="{{password}}"
+          bindinput="onPasswordInput"
+          bindconfirm="submit"
+        />
+      </view>
+    </view>
+
+    <view wx:if="{{errorMessage}}" class="error-text login-error">{{errorMessage}}</view>
+
+    <button
+      class="primary-button login-button"
+      loading="{{submitting}}"
+      disabled="{{submitting}}"
+      bindtap="submit"
+    >
+      {{submitting ? '登录中…' : '登录'}}
+    </button>
+  </view>
+
+  <view class="login-links">
+    <text class="login-link" bindtap="openRegister">注册账号</text>
+    <text class="login-link-sep">·</text>
+    <text class="login-link" bindtap="openPasswordReset">忘记密码</text>
+  </view>
+
+  <view class="login-note">
+    登录仅使用账号密码；小程序不会获取微信头像、昵称、手机号或 openid。
+  </view>
+</view>

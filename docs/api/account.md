@@ -18,7 +18,7 @@
 | POST | `/auth/logout` | Bearer | 200 | [当前身份与退出](#identity-logout) |
 | GET | `/api/admin/me` | 管理员 | 200 | [工作台身份校验](#admin-session) |
 | GET | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
-| PATCH | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
+| PATCH / PUT | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
 | PATCH | `/api/me/profile/username` | Bearer | 200 | [修改用户名](#username) |
 | PUT | `/api/me/avatar` | Bearer | 204 | [用户头像](#avatar) |
 | GET | `/api/users/{userId}/avatar` | 公开 | 200 JPEG / 204 | [用户头像](#avatar) |
@@ -255,13 +255,13 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 | 方法 | 路径 | 权限 | 成功状态 |
 | --- | --- | --- | --- |
 | GET | `/api/me/profile` | Bearer | 200 |
-| PATCH | `/api/me/profile` | Bearer | 200 |
+| PATCH / PUT | `/api/me/profile` | Bearer | 200 |
 
 **请求参数**
 
-`GET /api/me/profile`、`PATCH /api/me/profile`均需Bearer，用户归属只取当前认证身份。GET无业务参数。额外userId查询参数不改变查询或修改对象。改名和头像分别使用[修改用户名](#username)和[用户头像](#avatar)接口。收藏及关注名单隐私使用[收藏设置](community.md#favorite-visibility)和[关注设置](community.md#follow-privacy)。
+`GET /api/me/profile`读取资料，`PATCH`和`PUT /api/me/profile`均可保存简介，三者都需Bearer。用户归属只取当前认证身份。GET无业务参数。额外userId查询参数不改变查询或修改对象。改名和头像分别使用[修改用户名](#username)和[用户头像](#avatar)接口。收藏及关注名单隐私使用[收藏设置](community.md#favorite-visibility)和[关注设置](community.md#follow-privacy)。
 
-PATCH只接受必填字符串bio，空字符串可清空；未知JSON字段（含userId、username、email、roles）返回400 `COMMON_MALFORMED_REQUEST`，数字、布尔值、数组或对象不能自动转为字符串；缺少或null返回400 `COMMON_VALIDATION_FAILED`。请求示例：
+保存只接受必填字符串bio，空字符串可清空。未知JSON字段（含userId、username、email、roles）返回400 `COMMON_MALFORMED_REQUEST`，数字、布尔值、数组或对象不能自动转为字符串。缺少或null返回400 `COMMON_VALIDATION_FAILED`。请求示例：
 
 ```json
 {"bio":"喜欢探索校园美食"}

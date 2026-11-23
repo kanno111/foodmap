@@ -1,0 +1,303 @@
+import { absoluteUrl } from '../../config/env'
+import { userAvatarUrl } from '../../shared/api/avatars'
+import { businessLabel, formatDate, formatRating } from '../../shared/lib/format'
+
+export type ReviewSort = 'DEFAULT' | 'TIME'
+
+/** 与后端一致的三态推荐态度；不再使用布尔字段 recommended。 */
+export type ReviewRecommendation = 'RECOMMENDED' | 'NEUTRAL' | 'NOT_RECOMMENDED'
+
+const RECOMMENDATION_TEXT: Record<ReviewRecommendation, string> = {
+  RECOMMENDED: '推荐',
+  NEUTRAL: '一般',
+  NOT_RECOMMENDED: '不推荐',
+}
+
+/** 把三态态度转换成展示文案，未知值返回空串以便上层判定数据异常。 */
+export function recommendationText(value: unknown): string {
+  return typeof value === 'string' && value in RECOMMENDATION_TEXT
+    ? RECOMMENDATION_TEXT[value as ReviewRecommendation]
+    : ''
+}
+
+export interface ReviewScores {
+  taste: number
+  value: number
+  service: number
+  ambience: number
+}
+
+export interface ReviewPhotoRaw {
+  id: string
+  position: number
+  url: string
+}
+
+export interface CurrentReviewRaw {
+  id: string
+  scores: ReviewScores
+  overallScore: number
+  recommendation: ReviewRecommendation
+  body: string
+  createdAt: string
+  scoringStatus: 'current' | 'history'
+  photos: ReviewPhotoRaw[]
+}
+
+export interface ReviewGroupRaw {
+  author: { id: string; username: string; level?: number }
+  historyCount: number
+  nextHistoryCursor?: string | null
+  currentReview: CurrentReviewRaw
+}
+
+export interface ReviewGroupPageRaw {
+  records: ReviewGroupRaw[]
+  totalGroups: number
+  totalReviews: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+/** 页面只消费已校验的视图模型，WXML 中不再做函数调用或容错判断。 */
+export interface ReviewView {
+  id: string
+  authorId: string
+  username: string
+  avatarText: string
+  avatarUrl: string
+  authorLevelText: string
+  historyText: string
+  overallScoreText: string
+  createdAtText: string
+  recommendation: ReviewRecommendation
+  recommendationText: string
+  body: string
+  photoUrls: string[]
+}
+
+export interface ReviewPageView {
+  records: ReviewView[]
+  totalGroups: number
+  totalReviews: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+const scoreKeys: Array<keyof ReviewScores> = ['taste', 'value', 'service', 'ambience']
+const invalid = () => new Error('点评数据无法确认，请重新加载。')
+
+function validId(value: unknown): value is string {
+  return typeof value === 'string' && /^[1-9]\d*$/.test(value)
+}
+
+/** 校验关键字段并生成视图；图片地址由本站点评ID和位置生成，不信任任意外链。 */
+export function toReviewPageView(raw: ReviewGroupPageRaw, expectedPage: number): ReviewPageView {
+  if (
+    !raw ||
+    !Array.isArray(raw.records) ||
+    raw.records.length > 8 ||
+    raw.page !== expectedPage ||
+    raw.pageSize !== 8 ||
+    ![raw.totalGroups, raw.totalReviews, raw.totalPages].every(
+      (value) => Number.isSafeInteger(value) && value >= 0,
+    ) ||
+    raw.totalReviews < raw.totalGroups ||
+    raw.totalPages !== Math.ceil(raw.totalGroups / 8)
+  ) {
+    throw invalid()
+  }
+
+  const ids = new Set<string>()
+  const records = raw.records.map((group): ReviewView => {
+    const review = group.currentReview
+    if (
+      !group.author ||
+      !validId(group.author.id) ||
+      typeof group.author.username !== 'string' ||
+      !review ||
+      !validId(review.id) ||
+      ids.has(review.id) ||
+      review.scoringStatus !== 'current' ||
+      typeof review.body !== 'string' ||
+      recommendationText(review.recommendation) === '' ||
+      !Number.isFinite(review.overallScore) ||
+      !Number.isFinite(Date.parse(review.createdAt)) ||
+      !review.scores ||
+      !scoreKeys.every((key) => {
+        const value = review.scores[key]
+        return typeof value === 'number' && value >= 0 && value <= 10
+      }) ||
+      !Number.isSafeInteger(group.historyCount) ||
+      group.historyCount < 0 ||
+      !Array.isArray(review.photos) ||
+      review.photos.length > 5 ||
+      !review.photos.every((photo, index) => photo && photo.position === index)
+    ) {
+      throw invalid()
+    }
+    ids.add(review.id)
+    const photoUrls = review.photos.map((photo, index) =>
+      absoluteUrl(`/api/reviews/${encodeURIComponent(review.id)}/photos/${index}`),
+    )
+    return {
+      id: review.id,
+      authorId: group.author.id,
+      username: group.author.username,
+      avatarText: Array.from(group.author.username)[0] ?? '?',
+      avatarUrl: userAvatarUrl(group.author.id),
+      authorLevelText: group.author.level ? `Lv.${group.author.level}` : '',
+      historyText: group.historyCount > 0 ? `另有 ${group.historyCount} 条历史点评` : '',
+      overallScoreText: formatRating(review.overallScore),
+      createdAtText: formatDate(review.createdAt),
+      recommendation: review.recommendation,
+      recommendationText: recommendationText(review.recommendation),
+      body: review.body,
+      photoUrls,
+    }
+  })
+
+  return {
+    records,
+    totalGroups: raw.totalGroups,
+    totalReviews: raw.totalReviews,
+    page: raw.page,
+    pageSize: raw.pageSize,
+    totalPages: raw.totalPages,
+  }
+}
+
+/**
+ * 本人点评按店铺分组的原始结构。
+ *
+ * 与公开点评不同，这里每家店只返回本人最新一条有效点评；
+ * 分组单位是店铺，因此没有作者字段，也不需要头像文案。
+ */
+export interface MyReviewGroupRaw {
+  restaurant: {
+    id: string
+    name: string
+    businessStatus: 'OPERATING' | 'CLOSED'
+  }
+  currentReview: CurrentReviewRaw
+  historyCount: number
+  nextHistoryCursor?: string | null
+}
+
+export interface MyReviewPageRaw {
+  author: { id: string; username: string }
+  records: MyReviewGroupRaw[]
+  totalGroups: number
+  totalReviews: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+/** 本人点评列表只展示店铺、当前有效点评和日期，不在客户端拼装跳转地址。 */
+export interface MyReviewCard {
+  reviewId: string
+  restaurantId: string
+  restaurantName: string
+  businessText: string
+  closed: boolean
+  overallScoreText: string
+  recommendation: ReviewRecommendation
+  recommendationText: string
+  createdAtText: string
+  body: string
+  historyText: string
+  photoCountText: string
+}
+
+export interface MyReviewPageView {
+  records: MyReviewCard[]
+  totalGroups: number
+  totalReviews: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+const MY_REVIEW_PAGE_SIZE = 8
+
+/**
+ * 校验本人点评分页并生成展示模型。
+ *
+ * 服务端保证每组只返回最新有效点评；这里仍复核关键字段，
+ * 避免异常响应把历史点评或损坏数据当成当前点评展示。
+ */
+export function toMyReviewPageView(raw: MyReviewPageRaw, expectedPage: number): MyReviewPageView {
+  if (
+    !raw ||
+    !Array.isArray(raw.records) ||
+    raw.records.length > MY_REVIEW_PAGE_SIZE ||
+    raw.page !== expectedPage ||
+    raw.pageSize !== MY_REVIEW_PAGE_SIZE ||
+    ![raw.totalGroups, raw.totalReviews, raw.totalPages].every(
+      (value) => Number.isSafeInteger(value) && value >= 0,
+    ) ||
+    raw.totalReviews < raw.totalGroups ||
+    raw.totalPages !== Math.ceil(raw.totalGroups / MY_REVIEW_PAGE_SIZE)
+  ) {
+    throw invalid()
+  }
+
+  const restaurantIds = new Set<string>()
+  const reviewIds = new Set<string>()
+  const records = raw.records.map((group): MyReviewCard => {
+    const restaurant = group.restaurant
+    const review = group.currentReview
+    if (
+      !restaurant ||
+      !validId(restaurant.id) ||
+      typeof restaurant.name !== 'string' ||
+      !restaurant.name.trim() ||
+      (restaurant.businessStatus !== 'OPERATING' && restaurant.businessStatus !== 'CLOSED') ||
+      restaurantIds.has(restaurant.id) ||
+      !review ||
+      !validId(review.id) ||
+      reviewIds.has(review.id) ||
+      review.scoringStatus !== 'current' ||
+      typeof review.body !== 'string' ||
+      recommendationText(review.recommendation) === '' ||
+      !Number.isFinite(review.overallScore) ||
+      review.overallScore < 0 ||
+      review.overallScore > 10 ||
+      !Number.isFinite(Date.parse(review.createdAt)) ||
+      !Number.isSafeInteger(group.historyCount) ||
+      group.historyCount < 0 ||
+      !Array.isArray(review.photos) ||
+      review.photos.length > 5
+    ) {
+      throw invalid()
+    }
+    restaurantIds.add(restaurant.id)
+    reviewIds.add(review.id)
+    return {
+      reviewId: review.id,
+      restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
+      businessText: businessLabel(restaurant.businessStatus),
+      closed: restaurant.businessStatus === 'CLOSED',
+      overallScoreText: formatRating(review.overallScore),
+      recommendation: review.recommendation,
+      recommendationText: recommendationText(review.recommendation),
+      createdAtText: formatDate(review.createdAt),
+      body: review.body,
+      historyText: group.historyCount > 0 ? `另有 ${group.historyCount} 条历史点评` : '',
+      photoCountText: review.photos.length > 0 ? `${review.photos.length} 张照片` : '',
+    }
+  })
+
+  return {
+    records,
+    totalGroups: raw.totalGroups,
+    totalReviews: raw.totalReviews,
+    page: raw.page,
+    pageSize: raw.pageSize,
+    totalPages: raw.totalPages,
+  }
+}
