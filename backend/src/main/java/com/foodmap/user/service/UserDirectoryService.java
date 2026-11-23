@@ -12,16 +12,11 @@ import org.springframework.stereotype.Service;
 public class UserDirectoryService {
     private final UserDirectoryMapper users;
 
-    public Page page(String keyword, int page, int size) {
+    public List<UserDirectoryEntry> list(String keyword) {
         String term = keyword.strip();
         String pattern = term.isEmpty()
                 ? null
                 : "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        long total = users.count(pattern);
-        long offset = ((long) page - 1) * size;
-        var records = offset < total ? users.page(pattern, size, offset) : List.<UserDirectoryEntry>of();
-        return new Page(total, records);
+        return users.list(pattern);
     }
-
-    public record Page(long total, List<UserDirectoryEntry> records) {}
 }

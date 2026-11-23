@@ -126,7 +126,7 @@ class UserProfileApiIntegrationTest {
 
     @Test
     @Transactional
-    void adminDirectoryPaginatesAndCountsOnlyExistingReviewsAndApprovedRequests() throws Exception {
+    void adminDirectorySortsByReviewAndApprovalCountsBeforePaginating() throws Exception {
         String endpoint = "/api/admin/users";
         mvc.perform(get(endpoint)).andExpect(status().isUnauthorized());
         mvc.perform(get(endpoint).header("Authorization", "Bearer " + owner))
@@ -135,11 +135,20 @@ class UserProfileApiIntegrationTest {
                 INSERT INTO user_roles(user_id,role_id) SELECT 11,id FROM roles WHERE code='ROLE_ADMIN'
                 """);
         jdbc.update("UPDATE users SET username='profileXother',avatar_file_id=301 WHERE id=22");
+        jdbc.update("""
+                INSERT INTO users(id,username,email,password_hash,email_verified) VALUES
+                (33,'profileTie','tie@std.uestc.edu.cn','test-only-hash',TRUE),
+                (44,'profileFewerReviews','fewer@std.uestc.edu.cn','test-only-hash',TRUE),
+                (55,'profileZero','zero@std.uestc.edu.cn','test-only-hash',TRUE)
+                """);
         jdbc.update("INSERT INTO restaurants(id,name,category_code) VALUES(71,'测试店','OTHER')");
         profileReview(101, 71, 22, "2026-11-01 00:00:00");
         profileReview(102, 71, 22, "2026-11-02 00:00:00");
         profileReview(103, 71, 22, "2026-11-03 00:00:00");
         jdbc.update("DELETE FROM reviews WHERE id=103");
+        profileReview(104, 71, 33, "2026-11-01 00:00:00");
+        profileReview(105, 71, 33, "2026-11-02 00:00:00");
+        profileReview(106, 71, 44, "2026-11-03 00:00:00");
         jdbc.update("""
                 INSERT INTO restaurant_change_requests
                 (restaurant_id, request_type, submitted_by, client_request_id, request_hash, proposed_data,
@@ -154,13 +163,21 @@ class UserProfileApiIntegrationTest {
                 (NULL, 'CREATE', 22, UUID(), UNHEX(SHA2('pending',256)), '{}',
                  'PENDING', NULL, NULL, NULL, NULL, NULL)
                 """);
+        jdbc.update("""
+                INSERT INTO restaurant_change_requests
+                (restaurant_id, request_type, submitted_by, client_request_id, request_hash, proposed_data,
+                 status, approval_mode, reviewed_by, reviewed_at, approved_data, before_data)
+                SELECT restaurant_id, request_type, 44, UUID(), request_hash, proposed_data,
+                       status, approval_mode, reviewed_by, reviewed_at, approved_data, before_data
+                FROM restaurant_change_requests WHERE submitted_by=22 AND status='APPROVED'
+                """);
 
         var first = mvc.perform(get(endpoint).param("keyword", " profile ").param("pageSize", "1")
                         .header("Authorization", "Bearer " + owner))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(jsonPath("$.data.total").value(2))
-                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.total").value(5))
+                .andExpect(jsonPath("$.data.totalPages").value(5))
                 .andExpect(jsonPath("$.data.records[0].id").value("22"))
                 .andExpect(jsonPath("$.data.records[0].username").value("profileXother"))
                 .andExpect(jsonPath("$.data.records[0].hasAvatar").value(true))
@@ -170,6 +187,18 @@ class UserProfileApiIntegrationTest {
         assertThat(json.readTree(first.getResponse().getContentAsString()).get("data")
                 .get("records").get(0).size()).isEqualTo(5);
         mvc.perform(get(endpoint).param("page", "2").param("pageSize", "1")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].id").value("33"))
+                .andExpect(jsonPath("$.data.records[0].reviewCount").value(2))
+                .andExpect(jsonPath("$.data.records[0].approvedSubmissionCount").value(0));
+        var fullPage = mvc.perform(get(endpoint).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk());
+        var orderedIds = List.of("22", "33", "44", "55", "11");
+        for (int index = 0; index < orderedIds.size(); index++) {
+            fullPage.andExpect(jsonPath("$.data.records[" + index + "].id").value(orderedIds.get(index)));
+        }
+        mvc.perform(get(endpoint).param("page", "5").param("pageSize", "1")
                         .header("Authorization", "Bearer " + owner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].id").value("11"))
@@ -183,6 +212,11 @@ class UserProfileApiIntegrationTest {
         mvc.perform(get(endpoint).param("keyword", "missing").header("Authorization", "Bearer " + owner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.records").isEmpty());
+        mvc.perform(get(endpoint).param("page", "6").param("pageSize", "1")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(5))
                 .andExpect(jsonPath("$.data.records").isEmpty());
         mvc.perform(get(endpoint).param("pageSize", "51").header("Authorization", "Bearer " + owner))
                 .andExpect(status().isBadRequest());
