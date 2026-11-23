@@ -5,7 +5,12 @@ import { computed, inject, nextTick, onMounted, onUnmounted, ref, useId, watch }
 import { useRoute, useRouter } from 'vue-router'
 import { authToken } from '@/shared/api/authSession'
 import { useLoginStore } from '@/modules/auth/model/login.store'
-import { reviewGatewayKey, unavailableReviewGateway, validBody } from '../model/review'
+import {
+  reviewGatewayKey,
+  unavailableReviewGateway,
+  validBody,
+  ReviewMutedError,
+} from '../model/review'
 import { activeReplyEditorKey, replyScopeVisibleKey } from '../model/replyEditor'
 import type { ReplyPage } from '../model/review'
 import { UserIdentity, ContentActions } from '@/modules/community'
@@ -22,7 +27,11 @@ const props = defineProps<{
   /** 通知已重新鉴权的指定回复先展示，避免为定位连续扫描所有历史分页。 */
   focusedReply?: ReplyPage['records'][number]
 }>()
-const emit = defineEmits<{ page: [value: ReplyPage]; invalidate: [] }>()
+const emit = defineEmits<{
+  page: [value: ReplyPage]
+  invalidate: []
+  muteFeedback: [visible: boolean]
+}>()
 const gateway = inject(reviewGatewayKey, unavailableReviewGateway)
 const activeEditor = inject(activeReplyEditorKey, ref<string | null>(null))
 const scopeVisible = inject(replyScopeVisibleKey, ref(true))
@@ -50,8 +59,16 @@ const displayedRecords = computed(() => {
 })
 const draft = ref(''),
   readError = ref(''),
-  sendError = ref(''),
+  sendError = ref<string | ReviewMutedError>(''),
   notice = ref('')
+const muteFeedback = computed(() => sendError.value instanceof ReviewMutedError)
+watch(
+  muteFeedback,
+  (visible) => {
+    if (props.detailMode) emit('muteFeedback', visible)
+  },
+  { immediate: true },
+)
 const input = ref<globalThis.HTMLTextAreaElement>()
 const pendingDelete = ref<string | null>(null)
 const deleting = ref(false)
@@ -305,7 +322,12 @@ async function send() {
     if (scopeVisible.value) await load(true)
   } catch (reason) {
     if (owner === context)
-      sendError.value = reason instanceof Error ? reason.message : '回复失败，文字已保留。'
+      sendError.value =
+        reason instanceof ReviewMutedError
+          ? reason
+          : reason instanceof Error
+            ? reason.message
+            : '回复失败，文字已保留。'
   } finally {
     if (owner === context) sending.value = false
   }
@@ -486,7 +508,13 @@ async function focusTarget() {
       >
         登录后回复
       </button>
-      <form v-show="editing" :id="editorId" class="reply-composer" @submit.prevent="send">
+      <form
+        v-show="editing"
+        :id="editorId"
+        class="reply-composer"
+        :class="{ 'mute-reply': muteFeedback }"
+        @submit.prevent="send"
+      >
         <label :class="{ 'detail-input-label': detailMode }" :for="'reply-input-' + uniqueId"
           >回复 {{ username }}</label
         >
@@ -500,7 +528,9 @@ async function focusTarget() {
           :aria-invalid="length > 200 || !!sendError"
           @keydown.enter="enter"
         />
-        <p v-if="sendError" role="alert" class="reply-error">{{ sendError }}</p>
+        <p v-if="sendError" role="alert" class="reply-error">
+          {{ sendError instanceof ReviewMutedError ? sendError.message : sendError }}
+        </p>
         <div class="composer-footer">
           <span
             v-if="!detailMode || length > 150"

@@ -9,6 +9,7 @@ import com.foodmap.review.mapper.ReviewSubmissionMapper;
 import com.foodmap.review.policy.ReviewSubmissionPolicy;
 import com.foodmap.review.vo.ReviewSubmissionReceipt;
 import com.foodmap.security.service.CurrentActorService;
+import com.foodmap.user.service.UserMuteService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +29,7 @@ public class ReviewSubmissionService {
     private final ReviewSubmissionMapper submissions;
     private final MediaFileService media;
     private final CurrentActorService actors;
+    private final UserMuteService userMute;
 
     /** 只校验及计算点评摘要，供外层联合摘要使用；不提前绑定文件，不写入任何数据。 */
     public String fingerprint(String uuid, ReviewSubmissionRequest input) {
@@ -55,6 +57,7 @@ public class ReviewSubmissionService {
             }
             return receipt(saved);
         }
+        userMute.requireUnmuted(owner);
         var row = new ReviewSubmissionEntity();
         row.setRestaurantRequestId(requestId);
         row.setOriginRequestId(requestId);

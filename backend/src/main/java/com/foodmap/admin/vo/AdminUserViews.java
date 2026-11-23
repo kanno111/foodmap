@@ -1,5 +1,6 @@
 package com.foodmap.admin.vo;
 
+import java.time.Instant;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -15,7 +16,11 @@ public final class AdminUserViews {
         private boolean hasAvatar;
         private long reviewCount;
         private long approvedSubmissionCount;
+        private Instant mutedAt;
+        private boolean canModerate;
     }
+
+    public record Mute(String id, Instant mutedAt) {}
 
     @Data
     @AllArgsConstructor

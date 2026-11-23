@@ -175,6 +175,9 @@
   scrollbar-gutter: stable;
   padding-bottom: 160px;
 }
+.discussion-scroll.has-mute-feedback {
+  padding-bottom: calc(204px + env(safe-area-inset-bottom));
+}
 .discussion-thread :is(button, a):focus-visible,
 .discussion-sheet button:focus-visible {
   outline: 2px solid #a5adb7;

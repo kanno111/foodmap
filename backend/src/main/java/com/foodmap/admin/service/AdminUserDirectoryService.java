@@ -64,7 +64,8 @@ public class AdminUserDirectoryService {
     private record RankedUser(UserDirectoryEntry user, long reviewCount, long approvedSubmissionCount) {
         AdminUserViews.Item view() {
             return new AdminUserViews.Item(Long.toString(user.getId()), user.getUsername(),
-                    user.isHasAvatar(), reviewCount, approvedSubmissionCount);
+                    user.isHasAvatar(), reviewCount, approvedSubmissionCount, user.getMutedAt(),
+                    user.isCanModerate());
         }
     }
 }

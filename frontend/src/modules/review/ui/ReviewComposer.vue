@@ -9,7 +9,12 @@ import type { RestaurantReadModel } from '@/modules/restaurant/model/restaurant.
 import { ratingDimensions } from '@/modules/restaurant/model/catalog.logic'
 import HalfStarRating from './HalfStarRating.vue'
 import ReviewTargetSearch from './ReviewTargetSearch.vue'
-import { validBody, reviewGatewayKey, unavailableReviewGateway } from '../model/review'
+import {
+  validBody,
+  reviewGatewayKey,
+  unavailableReviewGateway,
+  ReviewMutedError,
+} from '../model/review'
 import { compressPhoto } from '../model/photos'
 import { useReviewPhotos } from '../model/useReviewPhotos'
 import { MAX_REVIEW_PHOTOS } from '../model/review'
@@ -34,7 +39,7 @@ const dialog = ref<globalThis.HTMLDialogElement>(),
   loading = ref(false),
   busy = ref(false),
   processing = ref(false),
-  error = ref('')
+  error = ref<string | ReviewMutedError>('')
 const restaurants = ref<RestaurantReadModel[]>([]),
   selected = ref(''),
   body = ref(''),
@@ -291,8 +296,14 @@ async function submit() {
       }
     }
   } catch (reason) {
-    if (ticket === generation)
-      error.value = reason instanceof Error ? reason.message : '发布失败，草稿已保留。'
+    if (ticket === generation) {
+      error.value =
+        reason instanceof ReviewMutedError
+          ? reason
+          : reason instanceof Error
+            ? reason.message
+            : '发布失败，草稿已保留。'
+    }
   } finally {
     if (ticket === generation) busy.value = false
   }
@@ -528,8 +539,13 @@ onUnmounted(close)
       </section>
       <footer class="composer-footer">
         <!-- 反馈与提交按钮放在同一个固定区域，校验、网络错误和等待状态始终可见。 -->
-        <p v-if="error" role="alert" class="error submit-feedback">
-          {{ error }}
+        <p
+          v-if="error"
+          role="alert"
+          class="error submit-feedback"
+          :class="{ 'mute-feedback': error instanceof ReviewMutedError }"
+        >
+          {{ error instanceof ReviewMutedError ? error.message : error }}
         </p>
         <p v-else-if="busy || loading || processing" role="status" class="hint submit-feedback">
           {{

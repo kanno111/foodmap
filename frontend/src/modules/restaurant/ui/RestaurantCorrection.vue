@@ -6,6 +6,7 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowRef, useId, 
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { authToken, getAccessToken } from '@/shared/api/authSession'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
+import { isAxiosError } from 'axios'
 import { useReturnNavigation } from '@/shared/lib/useReturnNavigation'
 import {
   MerchantPlacePicker,
@@ -17,7 +18,7 @@ import { compressPhoto } from '@/modules/file/model/photos'
 import { useSubmissionPhotos } from '../model/useSubmissionPhotos'
 import { useLoginStore } from '@/modules/auth'
 import { fetchCurrentUser } from '@/modules/auth/api/authApi'
-import { validBody } from '@/modules/review/model/review'
+import { ReviewMutedError, validBody } from '@/modules/review/model/review'
 import { attachedReviewDraft } from '../model/attachedReview'
 import AttachedReviewEditor from './AttachedReviewEditor.vue'
 import {
@@ -160,7 +161,7 @@ const originalCategory = ref('')
 const loading = ref(false),
   saving = ref(false),
   loadError = ref(''),
-  saveError = ref('')
+  saveError = ref<string | ReviewMutedError>('')
 const errors = ref<RestaurantErrors>({})
 const receipt = ref('')
 const selectedPlace = ref('')
@@ -498,10 +499,15 @@ async function submit(includeReview = false) {
       heading.value?.focus()
     }
   } catch (error) {
-    if (!disposed && getAccessToken() === token)
-      saveError.value = props.admin
-        ? `${toErrorMessage(error)}。若请求超时，请先返回商户管理核对保存结果，避免重复新增。`
-        : toErrorMessage(error)
+    if (!disposed && getAccessToken() === token) {
+      if (isAxiosError(error) && error.response?.data?.code === 'USER_MUTED') {
+        saveError.value = new ReviewMutedError('review')
+      } else {
+        saveError.value = props.admin
+          ? `${toErrorMessage(error)}。若请求超时，请先返回商户管理核对保存结果，避免重复新增。`
+          : toErrorMessage(error)
+      }
+    }
   } finally {
     saving.value = false
   }
@@ -888,8 +894,17 @@ onBeforeUnmount(() => {
         {{ admin ? '保存后立即更新公开资料。食堂不设置美食品类。' : '审核通过后更新公开资料。' }}
       </p>
       <p v-if="Object.keys(errors).length" role="alert" class="error">请修改标记的字段后再提交。</p>
-      <p v-if="saveError" role="alert" class="error">
-        {{ saveError }}{{ admin ? '' : '，资料已保留，可重试提交。' }}
+      <p
+        v-if="saveError"
+        role="alert"
+        class="error"
+        :class="{ 'mute-feedback': saveError instanceof ReviewMutedError }"
+      >
+        {{
+          saveError instanceof ReviewMutedError
+            ? saveError.message
+            : saveError + (admin ? '' : '，资料已保留，可重试提交。')
+        }}
       </p>
       <p
         v-if="step === 'restaurant' && canAttachReview && review.enabled && !reviewLocked"
@@ -1542,6 +1557,14 @@ fieldset:disabled {
 }
 .receipt-actions a:focus-visible {
   outline-color: #a5adb7;
+}
+.error.mute-feedback {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fbf0ed;
+  color: #a84338;
+  line-height: 1.55;
+  white-space: pre-line;
 }
 @media (max-width: 560px) {
   .fields {

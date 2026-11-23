@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { authToken } from '@/shared/api/authSession'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
 import UserAvatar from '@/modules/account/ui/UserAvatar.vue'
-import { fetchAdminUsers, type AdminUserPage } from '../api/adminUsersApi'
+import {
+  fetchAdminUsers,
+  setAdminUserMuted,
+  type AdminUser,
+  type AdminUserPage,
+} from '../api/adminUsersApi'
 import AdminHeader from './AdminHeader.vue'
 import AdminSidebar from './AdminSidebar.vue'
 
@@ -17,6 +22,11 @@ const result = ref<AdminUserPage | null>(null)
 const loading = ref(false)
 const error = ref('')
 let request: globalThis.AbortController | undefined
+let muteRequest: globalThis.AbortController | undefined
+const muteDialog = useTemplateRef('muteDialog')
+const selected = ref<AdminUser | null>(null)
+const updatingMute = ref(false)
+const muteError = ref('')
 const number = new Intl.NumberFormat('zh-CN')
 const pageNumbers = computed(() => {
   const total = Math.min(result.value?.totalPages ?? 0, 1_000_000)
@@ -55,8 +65,55 @@ function search() {
   void load(1)
 }
 
+async function confirmMute(user: AdminUser) {
+  selected.value = user
+  muteError.value = ''
+  await nextTick()
+  if (selected.value?.id === user.id && !muteDialog.value?.open) muteDialog.value?.showModal()
+}
+
+function closeMute() {
+  muteDialog.value?.close()
+  selected.value = null
+  muteError.value = ''
+}
+
+async function changeMute() {
+  const token = authToken.value
+  const user = selected.value
+  if (!token || !user || updatingMute.value) return
+  const controller = new globalThis.AbortController()
+  muteRequest = controller
+  updatingMute.value = true
+  muteError.value = ''
+  const current = () => !controller.signal.aborted && authToken.value === token
+  try {
+    const mutedAt = await setAdminUserMuted(user.id, !user.mutedAt, token, controller.signal)
+    if (!current()) return
+    closeMute()
+    const row = result.value?.records.find(({ id }) => id === user.id)
+    if (row) row.mutedAt = mutedAt
+  } catch (reason) {
+    if (current()) muteError.value = toErrorMessage(reason)
+  } finally {
+    if (current()) updatingMute.value = false
+  }
+}
+
 onMounted(() => void load())
-onBeforeUnmount(() => request?.abort())
+watch(
+  authToken,
+  () => {
+    muteRequest?.abort()
+    updatingMute.value = false
+    closeMute()
+  },
+  { flush: 'sync' },
+)
+onBeforeUnmount(() => {
+  request?.abort()
+  muteRequest?.abort()
+})
 </script>
 
 <template>
@@ -90,6 +147,7 @@ onBeforeUnmount(() => request?.abort())
                 <th scope="col">用户</th>
                 <th scope="col">点评数</th>
                 <th scope="col">投稿审核通过数</th>
+                <th scope="col" class="user-action">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -100,11 +158,27 @@ onBeforeUnmount(() => request?.abort())
                       :user-id="user.hasAvatar ? user.id : null"
                       :username="user.username"
                     />
-                    <span>{{ user.username }}</span>
+                    <span class="user-name">
+                      {{ user.username }}
+                      <span v-if="user.mutedAt" class="muted-badge">已禁言</span>
+                    </span>
                   </div>
                 </td>
                 <td>{{ number.format(user.reviewCount) }}</td>
                 <td>{{ number.format(user.approvedSubmissionCount) }}</td>
+                <td class="user-action">
+                  <button
+                    v-if="user.canModerate"
+                    class="mute-action"
+                    :class="{ unmute: user.mutedAt }"
+                    type="button"
+                    :aria-label="`${user.mutedAt ? '解禁' : '禁言'} ${user.username}`"
+                    @click="confirmMute(user)"
+                  >
+                    {{ user.mutedAt ? '解禁' : '禁言' }}
+                  </button>
+                  <span v-else aria-hidden="true">—</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -154,6 +228,52 @@ onBeforeUnmount(() => request?.abort())
         </section>
       </main>
     </div>
+    <dialog
+      ref="muteDialog"
+      class="mute-dialog"
+      aria-labelledby="admin-user-mute-title"
+      @cancel.prevent="!updatingMute && closeMute()"
+    >
+      <template v-if="selected">
+        <div class="mute-dialog-body">
+          <h2 id="admin-user-mute-title">
+            {{
+              selected.mutedAt
+                ? `解除「${selected.username}」的禁言？`
+                : `禁言「${selected.username}」？`
+            }}
+          </h2>
+          <p>
+            {{
+              selected.mutedAt
+                ? '解禁后，该用户可以继续发布点评和回复。'
+                : '禁言后仍可登录和浏览，暂停发布点评与回复。'
+            }}
+          </p>
+          <p v-if="muteError" class="alert" role="alert">{{ muteError }}</p>
+        </div>
+        <footer>
+          <button
+            type="button"
+            class="cancel-mute"
+            autofocus
+            :disabled="updatingMute"
+            @click="closeMute"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="apply-mute"
+            :class="{ unmute: selected.mutedAt }"
+            :disabled="updatingMute"
+            @click="changeMute"
+          >
+            {{ updatingMute ? '正在处理…' : selected.mutedAt ? '确认解禁' : '确认禁言' }}
+          </button>
+        </footer>
+      </template>
+    </dialog>
   </div>
 </template>
 

@@ -107,6 +107,26 @@ td:nth-child(n + 2) {
   width: 22%;
   text-align: right;
 }
+th.user-action,
+td.user-action {
+  width: 96px;
+}
+.user-action {
+  white-space: nowrap;
+  color: var(--admin-muted);
+}
+.mute-action {
+  min-height: 35px;
+  margin-right: -8px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--admin-danger);
+  font-size: 13px;
+}
+.mute-action.unmute {
+  color: var(--admin-accent-text);
+}
 .user {
   display: flex;
   align-items: center;
@@ -114,6 +134,20 @@ td:nth-child(n + 2) {
   padding-block: 8px;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+.user-name {
+  min-width: 0;
+}
+.muted-badge {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--admin-danger-soft);
+  color: var(--admin-danger);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 .user :deep(.user-avatar) {
   width: 35px;
@@ -172,6 +206,64 @@ td:nth-child(n + 2) {
   color: var(--admin-accent-text);
   font-weight: 600;
 }
+.mute-dialog {
+  box-sizing: border-box;
+  width: min(360px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  box-shadow: 0 12px 36px var(--admin-shadow);
+}
+.mute-dialog::backdrop {
+  background: var(--admin-backdrop);
+}
+.mute-dialog-body {
+  padding: 20px;
+  overflow-wrap: anywhere;
+}
+.mute-dialog h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.mute-dialog p {
+  margin: 10px 0 0;
+  color: var(--admin-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.mute-dialog .alert {
+  color: var(--admin-danger);
+}
+.mute-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--admin-divider);
+}
+.mute-dialog footer button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 0;
+  font-size: 13px;
+}
+.mute-dialog .apply-mute,
+.mute-dialog .apply-mute:hover:enabled {
+  background: var(--admin-danger);
+  color: var(--admin-surface);
+  font-weight: 600;
+}
+.mute-dialog .apply-mute.unmute,
+.mute-dialog .apply-mute.unmute:hover:enabled {
+  background: var(--admin-primary);
+}
+.mute-dialog button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 @media (max-width: 800px) {
   .user-shell {
     grid-template-columns: minmax(0, 1fr);
@@ -197,10 +289,24 @@ td:nth-child(n + 2) {
   }
   th:nth-child(3),
   td:nth-child(3) {
-    width: 30%;
+    width: 29%;
+  }
+  th:nth-child(2),
+  td:nth-child(2) {
+    width: 16%;
+  }
+  th.user-action,
+  td.user-action {
+    width: 51px;
   }
   .user {
     gap: 7px;
+  }
+  .muted-badge {
+    margin: 2px 0 0;
+  }
+  .mute-action {
+    min-height: 40px;
   }
   .user :deep(.user-avatar) {
     width: 30px;

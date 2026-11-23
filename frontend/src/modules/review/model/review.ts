@@ -3,6 +3,14 @@ import type { PhotoSelection } from '@/shared/ui/photoViewer'
 import type { RatingDimension } from '@/modules/restaurant/model/restaurant.types'
 export type ReviewSort = 'DEFAULT' | 'TIME'
 export type Scores = Record<RatingDimension, number>
+
+export class ReviewMutedError extends Error {
+  constructor(action: 'review' | 'reply') {
+    const operation = action === 'review' ? '发布点评' : '发送回复'
+    super(`你的账号已被禁言，暂时无法${operation}。\n可在「消息」中查看通知。`)
+  }
+}
+
 /** 与正式及待发布点评共用的态度编码；不从分数推断，也没有默认选项。 */
 export const reviewRecommendations = ['RECOMMENDED', 'NEUTRAL', 'NOT_RECOMMENDED'] as const
 export type ReviewRecommendation = (typeof reviewRecommendations)[number]

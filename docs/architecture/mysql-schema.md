@@ -79,6 +79,7 @@ user模块拥有`users`、`roles`、`user_roles`和`security_audit_events`，分
 | `email_verified` | `tinyint(1)` | 否 | 默认0；邮箱是否已验证。 |
 | `email_verified_at` | `timestamp(6)` | 是 | 默认NULL；邮箱验证完成时间。 |
 | `status` | `varchar(20)` | 否 | 默认ACTIVE；ACTIVE正常、LOCKED锁定、DISABLED禁用、DELETED已删除。 |
+| `muted_at` | `timestamp(6)` | 是 | V55新增，默认NULL；非空为禁言开始时间，解禁时清空。 |
 | `student_verification_status` | `varchar(20)` | 否 | 默认PENDING；PENDING待认证、VERIFIED已认证、REJECTED认证驳回。 |
 | `credential_version` | `bigint unsigned` | 否 | 默认0；账号凭证版本。 |
 | `row_version` | `bigint unsigned` | 否 | 默认0；记录版本号。 |

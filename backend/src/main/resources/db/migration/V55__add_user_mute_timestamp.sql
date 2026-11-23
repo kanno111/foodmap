@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN muted_at TIMESTAMP(6) NULL DEFAULT NULL COMMENT '禁言开始时间，NULL表示未禁言';

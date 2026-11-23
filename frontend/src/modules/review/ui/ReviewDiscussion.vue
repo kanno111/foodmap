@@ -38,6 +38,7 @@ const loading = ref(false),
 const dialog = ref<globalThis.HTMLDialogElement>(),
   scroll = ref<globalThis.HTMLDivElement>()
 const editor = ref<InstanceType<typeof ReplyThread>>()
+const muteFeedback = ref(false)
 const trigger = ref<globalThis.HTMLButtonElement>()
 const titleId = 'discussion-title-' + useId()
 const route = useRoute()
@@ -305,7 +306,11 @@ defineExpose({ show })
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
               </button>
             </header>
-            <div ref="scroll" class="discussion-scroll">
+            <div
+              ref="scroll"
+              class="discussion-scroll"
+              :class="{ 'has-mute-feedback': muteFeedback }"
+            >
               <slot v-if="initialized" name="original" :focus-input="() => editor?.focusInput()" />
               <ReplyThread
                 v-if="initialized && !pending"
@@ -318,6 +323,7 @@ defineExpose({ show })
                 :focused-reply="focusedReply"
                 @page="updatePage"
                 @invalidate="invalidate"
+                @mute-feedback="muteFeedback = $event"
               />
             </div>
           </section>

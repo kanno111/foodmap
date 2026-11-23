@@ -10,7 +10,7 @@ import {
   publishReply,
   deleteReply,
 } from './reviewApi'
-import type { ReviewDraft } from '../model/review'
+import { ReviewMutedError, type ReviewDraft } from '../model/review'
 
 const draft = (): ReviewDraft => ({
   restaurantId: '101',
@@ -56,6 +56,16 @@ afterEach(() => {
 })
 
 describe('text review HTTP integration', () => {
+  it('shows the correct mute feedback for reviews and replies', async () => {
+    setAccessToken('muted-user')
+    vi.spyOn(httpClient, 'post').mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 403, data: { code: 'USER_MUTED' } },
+    })
+    await expect(publishTextReview(draft())).rejects.toThrow(ReviewMutedError)
+    await expect(publishTextReview(draft())).rejects.toThrow('暂时无法发布点评')
+    await expect(publishReply('10', '回复正文', 'uuid')).rejects.toThrow('暂时无法发送回复')
+  })
   it.each(['RECOMMENDED', 'NEUTRAL', 'NOT_RECOMMENDED'] as const)(
     'reads and publishes the exact %s attitude code',
     async (recommendation) => {

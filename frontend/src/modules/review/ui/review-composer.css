@@ -380,6 +380,14 @@ textarea::placeholder {
   color: #c35244;
   font-size: 13px;
 }
+.error.mute-feedback {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fbf0ed;
+  color: #a84338;
+  line-height: 1.55;
+  white-space: pre-line;
+}
 button:disabled,
 select:disabled {
   opacity: 0.48;

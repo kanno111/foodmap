@@ -10,8 +10,9 @@ import org.apache.ibatis.annotations.Select;
 public interface UserDirectoryMapper {
     @Select("""
             <script>
-            SELECT id, username, avatar_file_id IS NOT NULL AS has_avatar
-            FROM users WHERE status != 'DELETED'
+            SELECT u.id, u.username, u.avatar_file_id IS NOT NULL AS has_avatar, u.muted_at,
+            """ + UserMuteMapper.MODERATABLE + """
+            AS can_moderate FROM users u WHERE u.status != 'DELETED'
             <if test="pattern != null">AND username LIKE #{pattern} ESCAPE '!'</if>
             </script>
             """)
