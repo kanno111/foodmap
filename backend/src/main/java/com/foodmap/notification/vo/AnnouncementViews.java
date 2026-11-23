@@ -15,12 +15,17 @@ public final class AnnouncementViews {
         private String title;
         private String content;
         private String status;
+        private String audience;
         private String publishedBy;
         private Instant publishedAt;
         private String withdrawnBy;
         private Instant withdrawnAt;
         private boolean replayed;
     }
+
+    public record Recipient(String id, String username) {}
+
+    public record RecipientPage(List<Recipient> records, boolean hasNext) {}
 
     @Data
     public static class Page {

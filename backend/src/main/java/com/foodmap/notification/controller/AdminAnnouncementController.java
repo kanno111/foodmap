@@ -3,6 +3,7 @@ package com.foodmap.notification.controller;
 import com.foodmap.common.api.ApiResponse;
 import com.foodmap.notification.dto.AnnouncementPublishRequest;
 import com.foodmap.notification.dto.AnnouncementQuery;
+import com.foodmap.notification.dto.AnnouncementRecipientQuery;
 import com.foodmap.notification.service.AnnouncementService;
 import com.foodmap.notification.vo.AnnouncementViews;
 
@@ -32,7 +33,20 @@ public class AdminAnnouncementController {
     @PostMapping
     public ResponseEntity<ApiResponse<AnnouncementViews.Detail>> publish(
             @Valid @RequestBody AnnouncementPublishRequest request) {
-        return response(announcements.publish(request));
+        return response(announcements.publish(request, false));
+    }
+
+    /** 独立路径让指定发布在旧版本服务上直接失败，避免意外发给全体用户。 */
+    @PostMapping("/targeted")
+    public ResponseEntity<ApiResponse<AnnouncementViews.Detail>> publishTargeted(
+            @Valid @RequestBody AnnouncementPublishRequest request) {
+        return response(announcements.publish(request, true));
+    }
+
+    @GetMapping("/recipients")
+    public ResponseEntity<ApiResponse<AnnouncementViews.RecipientPage>> recipients(
+            @Valid @ModelAttribute AnnouncementRecipientQuery query) {
+        return response(announcements.searchRecipients(query.getKeyword(), query.getPage()));
     }
 
     /** 管理员分页查看已发布及撤回记录。 */

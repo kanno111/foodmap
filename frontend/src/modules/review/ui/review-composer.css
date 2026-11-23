@@ -251,6 +251,23 @@ textarea::placeholder {
 .photo-picker {
   margin-top: 17px;
 }
+.photo-drag-hint {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .photo-picker {
+    padding: 10px 12px;
+    border: 1px dashed #dfe3e8;
+    border-radius: 9px;
+  }
+  .photo-picker.dragging-photos {
+    border-color: #87929e;
+    background: #f5f7f9;
+  }
+  .photo-drag-hint {
+    display: inline;
+  }
+}
 .photo-input {
   display: none;
 }
@@ -362,6 +379,14 @@ textarea::placeholder {
 .error {
   color: #c35244;
   font-size: 13px;
+}
+.error.mute-feedback {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fbf0ed;
+  color: #a84338;
+  line-height: 1.55;
+  white-space: pre-line;
 }
 button:disabled,
 select:disabled {

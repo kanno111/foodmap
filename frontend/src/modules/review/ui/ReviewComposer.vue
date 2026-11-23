@@ -9,7 +9,12 @@ import type { RestaurantReadModel } from '@/modules/restaurant/model/restaurant.
 import { ratingDimensions } from '@/modules/restaurant/model/catalog.logic'
 import HalfStarRating from './HalfStarRating.vue'
 import ReviewTargetSearch from './ReviewTargetSearch.vue'
-import { validBody, reviewGatewayKey, unavailableReviewGateway } from '../model/review'
+import {
+  validBody,
+  reviewGatewayKey,
+  unavailableReviewGateway,
+  ReviewMutedError,
+} from '../model/review'
 import { compressPhoto } from '../model/photos'
 import { useReviewPhotos } from '../model/useReviewPhotos'
 import { MAX_REVIEW_PHOTOS } from '../model/review'
@@ -34,7 +39,7 @@ const dialog = ref<globalThis.HTMLDialogElement>(),
   loading = ref(false),
   busy = ref(false),
   processing = ref(false),
-  error = ref('')
+  error = ref<string | ReviewMutedError>('')
 const restaurants = ref<RestaurantReadModel[]>([]),
   selected = ref(''),
   body = ref(''),
@@ -47,6 +52,7 @@ let requestId = '',
   controller: globalThis.AbortController | undefined
 const receipt = ref<ReviewPublishReceipt | null>(null)
 const photoInput = ref<globalThis.HTMLInputElement>()
+const draggingPhotos = ref(false)
 const photoDraft = useReviewPhotos(gateway, () => owner)
 const { photos, pending: uploadingPhotos, failed: failedPhotos } = photoDraft
 const locked = computed(() => opened.value && owner !== authToken.value)
@@ -76,10 +82,47 @@ function fitViewport() {
     dialog.value?.style.removeProperty('top')
   }
 }
-function stopViewport() {
+function isFileDrag(transfer: globalThis.DataTransfer) {
+  return transfer.types.includes('Files') || transfer.files.length > 0
+}
+/** 弹窗外落下文件时拦住浏览器的默认打开行为，普通文字拖放仍由浏览器处理。 */
+function preventFileNavigation(event: globalThis.DragEvent) {
+  const transfer = event.dataTransfer
+  if (event.defaultPrevented || !transfer || !isFileDrag(transfer)) return
+  event.preventDefault()
+  transfer.dropEffect = 'none'
+  draggingPhotos.value = false
+}
+function dragOverPhotos(event: globalThis.DragEvent) {
+  const transfer = event.dataTransfer
+  if (!transfer || !isFileDrag(transfer)) return
+  event.preventDefault()
+  draggingPhotos.value = supportsPhotos && !processing.value && !busy.value && !locked.value
+  transfer.dropEffect = draggingPhotos.value ? 'copy' : 'none'
+}
+function leavePhotos(event: globalThis.DragEvent) {
+  if (
+    event.currentTarget instanceof globalThis.Node &&
+    event.relatedTarget instanceof globalThis.Node &&
+    event.currentTarget.contains(event.relatedTarget)
+  )
+    return
+  draggingPhotos.value = false
+}
+function dropPhotos(event: globalThis.DragEvent) {
+  const transfer = event.dataTransfer
+  if (!transfer || !isFileDrag(transfer)) return
+  event.preventDefault()
+  draggingPhotos.value = false
+  if (transfer.files.length) void addPhotos(transfer.files)
+}
+function stopEditorListeners() {
   globalThis.visualViewport?.removeEventListener('resize', fitViewport)
   globalThis.visualViewport?.removeEventListener('scroll', fitViewport)
   globalThis.removeEventListener('resize', fitViewport)
+  globalThis.removeEventListener('dragover', preventFileNavigation)
+  globalThis.removeEventListener('drop', preventFileNavigation)
+  draggingPhotos.value = false
 }
 watch(
   opened,
@@ -88,7 +131,9 @@ watch(
       globalThis.visualViewport?.addEventListener('resize', fitViewport)
       globalThis.visualViewport?.addEventListener('scroll', fitViewport)
       globalThis.addEventListener('resize', fitViewport)
-    } else stopViewport()
+      globalThis.addEventListener('dragover', preventFileNavigation)
+      globalThis.addEventListener('drop', preventFileNavigation)
+    } else stopEditorListeners()
     fitViewport()
   },
   { flush: 'post' },
@@ -103,7 +148,7 @@ function close() {
   busy.value = false
   processing.value = false
   dialog.value?.close?.()
-  stopViewport()
+  stopEditorListeners()
   unlockPage()
   if (wasOpened && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
   returnFocus = undefined
@@ -251,8 +296,14 @@ async function submit() {
       }
     }
   } catch (reason) {
-    if (ticket === generation)
-      error.value = reason instanceof Error ? reason.message : '发布失败，草稿已保留。'
+    if (ticket === generation) {
+      error.value =
+        reason instanceof ReviewMutedError
+          ? reason
+          : reason instanceof Error
+            ? reason.message
+            : '发布失败，草稿已保留。'
+    }
   } finally {
     if (ticket === generation) busy.value = false
   }
@@ -384,9 +435,11 @@ onUnmounted(close)
           <!-- 初始上传框与缩略图列表共用一个选图入口，图片不再堆在大框下方。 -->
           <section
             class="photo-picker"
+            :class="{ 'dragging-photos': draggingPhotos }"
             aria-label="点评照片"
-            @dragover.prevent
-            @drop.prevent="addPhotos($event.dataTransfer?.files ?? null)"
+            @dragover="dragOverPhotos"
+            @dragleave="leavePhotos"
+            @drop="dropPhotos"
           >
             <input
               ref="photoInput"
@@ -412,7 +465,13 @@ onUnmounted(close)
                   <path d="M12 5v14M5 12h14" />
                 </svg>
               </button>
-              <span class="photo-label">添加照片<small>最多 5 张</small></span>
+              <span class="photo-label">
+                添加照片
+                <small
+                  ><span v-if="supportsPhotos" class="photo-drag-hint">拖入照片 · </span>最多 5
+                  张</small
+                >
+              </span>
             </div>
             <div v-else class="thumbs">
               <div v-for="(photo, i) in photos" :key="photo.url" class="photo-card">
@@ -480,8 +539,13 @@ onUnmounted(close)
       </section>
       <footer class="composer-footer">
         <!-- 反馈与提交按钮放在同一个固定区域，校验、网络错误和等待状态始终可见。 -->
-        <p v-if="error" role="alert" class="error submit-feedback">
-          {{ error }}
+        <p
+          v-if="error"
+          role="alert"
+          class="error submit-feedback"
+          :class="{ 'mute-feedback': error instanceof ReviewMutedError }"
+        >
+          {{ error instanceof ReviewMutedError ? error.message : error }}
         </p>
         <p v-else-if="busy || loading || processing" role="status" class="hint submit-feedback">
           {{

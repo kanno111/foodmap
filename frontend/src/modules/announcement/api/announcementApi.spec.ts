@@ -34,19 +34,17 @@ describe('公告API白名单', () => {
     expect(value).not.toHaveProperty('unexpected')
   })
   it('拒绝用户侧撤回详情及不匹配ID', async () => {
-    const get = vi
-      .spyOn(httpClient, 'get')
-      .mockResolvedValue({
+    const get = vi.spyOn(httpClient, 'get').mockResolvedValue({
+      data: {
+        success: true,
         data: {
-          success: true,
-          data: {
-            ...row(),
-            status: 'WITHDRAWN',
-            withdrawnBy: '22',
-            withdrawnAt: '2026-11-08T06:00:00Z',
-          },
+          ...row(),
+          status: 'WITHDRAWN',
+          withdrawnBy: '22',
+          withdrawnAt: '2026-11-08T06:00:00Z',
         },
-      })
+      },
+    })
     await expect(
       fetchAnnouncement(row().id, 'token', new AbortController().signal),
     ).rejects.toThrow()
@@ -89,6 +87,23 @@ describe('公告API白名单', () => {
       'status',
       'WITHDRAWN',
     )
+  })
+  it('指定用户发布走独立路径，拒绝全体回执且不回退发布', async () => {
+    const post = vi
+      .spyOn(httpClient, 'post')
+      .mockResolvedValue({ data: { success: true, data: { ...row(), audience: 'ALL' } } })
+    const input = {
+      clientRequestId: crypto.randomUUID(),
+      title: row().title,
+      content: row().content,
+      recipientUserIds: ['11', '22'],
+    }
+    const signal = new AbortController().signal
+    await expect(publishAnnouncement(input, 'admin-token', signal)).rejects.toThrow()
+    expect(post).toHaveBeenCalledExactlyOnceWith('/api/admin/announcements/targeted', input, {
+      signal,
+      headers: { Authorization: 'Bearer admin-token' },
+    })
   })
   it('管理分页拒绝状态不符或计数损坏，且拒绝非法ID', async () => {
     vi.spyOn(httpClient, 'get').mockResolvedValue({

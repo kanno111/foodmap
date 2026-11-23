@@ -20,6 +20,7 @@ const sendingCode = ref(false)
 const submitting = ref(false)
 const completed = ref(false)
 const codeAccepted = ref(false)
+const sendError = ref<string | null>(null)
 const error = ref<string | null>(null)
 const errors = reactive<Record<string, string | null>>({})
 const remoteField = computed(() => accountErrorField(error.value))
@@ -39,7 +40,10 @@ function checkField(field: string) {
 function clearField(field: string) {
   errors[field] = null
   error.value = null
-  if (field === 'email') codeAccepted.value = false
+  if (field === 'email') {
+    codeAccepted.value = false
+    sendError.value = null
+  }
   if (field === 'password' && form.confirmPassword) {
     errors.confirm = form.confirmPassword === form.newPassword ? null : '两次输入的新密码不一致'
   }
@@ -63,6 +67,7 @@ function startCooldown() {
 async function handleSendCode() {
   if (busy.value || completed.value || cooldown.value > 0) return
   error.value = null
+  sendError.value = null
   codeAccepted.value = false
   const email = campusEmail(form.email)
   checkField('email')
@@ -75,7 +80,7 @@ async function handleSendCode() {
       startCooldown()
     }
   } catch (reason) {
-    if (active) error.value = toErrorMessage(reason)
+    if (active) sendError.value = toErrorMessage(reason)
   } finally {
     sendingCode.value = false
   }
@@ -161,6 +166,7 @@ onBeforeUnmount(() => {
             class="code-button"
             type="button"
             :disabled="cooldown > 0"
+            :aria-describedby="sendError ? 'reset-send-error' : undefined"
             @click="handleSendCode"
           >
             {{ sendingCode ? '正在发送…' : cooldown > 0 ? `${cooldown} 秒后重试` : '发送验证码' }}
@@ -170,13 +176,18 @@ onBeforeUnmount(() => {
         <p v-if="fieldError('email')" id="reset-email-error" class="field-error" role="alert">
           {{ fieldError('email') }}
         </p>
-        <small>验证码5分钟内有效，与注册验证码不能混用。</small>
+        <p v-if="sendError" id="reset-send-error" class="send-code-error" role="alert">
+          <span aria-hidden="true">!</span>
+          {{ sendError }}
+        </p>
+        <small v-else>验证码5分钟内有效，与注册验证码不能混用。</small>
       </div>
       <div class="form-field">
         <label for="reset-code">邮箱验证码</label>
         <input
           id="reset-code"
           v-model="form.verificationCode"
+          class="verification-code-input"
           name="verificationCode"
           inputmode="numeric"
           autocomplete="one-time-code"

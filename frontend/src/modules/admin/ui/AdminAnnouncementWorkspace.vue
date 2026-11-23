@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, useTemplateRef } from 'vue'
+import { computed, ref, watch, onBeforeUnmount, useTemplateRef } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { authToken } from '@/shared/api/authSession'
 import LeaveConfirmation from '@/shared/ui/LeaveConfirmation.vue'
@@ -7,6 +7,7 @@ import { useAdminAnnouncements } from '../model/useAdminAnnouncements'
 import type { AnnouncementDetail } from '@/modules/announcement'
 import AdminSidebar from './AdminSidebar.vue'
 import AdminHeader from './AdminHeader.vue'
+import AnnouncementRecipientDialog from './AnnouncementRecipientDialog.vue'
 defineProps<{ username: string; loggingOut: boolean; sessionError: string | null }>()
 defineEmits<{ logout: [] }>()
 const state = useAdminAnnouncements()
@@ -24,15 +25,16 @@ const {
   actionError,
   notice,
   pending,
+  recipients,
   page,
   dirty,
   validForm,
 } = state
 const confirmation = useTemplateRef('confirmation'),
-  recordDialog = useTemplateRef('recordDialog')
-const confirming = ref<{ kind: 'publish' | 'clear' | 'withdraw'; row?: AnnouncementDetail } | null>(
-  null,
-)
+  recordDialog = useTemplateRef('recordDialog'),
+  recipientDialog = useTemplateRef('recipientDialog')
+const confirming = ref<{ kind: 'publish' | 'withdraw'; row?: AnnouncementDetail } | null>(null)
+const recipientNames = computed(() => recipients.value.map(({ username }) => username).join('、'))
 const recordId = ref('')
 const time = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 const readingTime = (value: string) =>
@@ -44,7 +46,7 @@ const readingTime = (value: string) =>
     minute: '2-digit',
     hour12: false,
   })
-function ask(kind: 'publish' | 'clear' | 'withdraw', row?: AnnouncementDetail) {
+function ask(kind: 'publish' | 'withdraw', row?: AnnouncementDetail) {
   if (busy.value) return
   actionError.value = ''
   if (kind === 'publish' && !pending.value && !validForm.value) {
@@ -62,11 +64,6 @@ function closeConfirmation() {
 async function confirm() {
   const action = confirming.value
   if (!action || busy.value) return
-  if (action.kind === 'clear') {
-    state.clearDraft()
-    closeConfirmation()
-    return
-  }
   const success =
     action.kind === 'publish'
       ? await state.publish()
@@ -134,12 +131,21 @@ onBeforeUnmount(() => {
         </div>
         <p v-if="notice" role="status" class="announcement-notice">{{ notice }}</p>
         <form v-if="tab === 'publish'" class="announcement-editor" @submit.prevent="ask('publish')">
-          <p class="announcement-audience">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="9" cy="7" r="4" />
-              <path d="M2 21v-3a7 7 0 0 1 14 0v3M16 3a4 4 0 0 1 0 8M18 14a6 6 0 0 1 4 6" /></svg
-            >全体用户
-          </p>
+          <div class="announcement-field audience-field">
+            <span class="audience-label">发送范围</span>
+            <div class="announcement-audience">
+              <strong>{{ recipients.length ? '指定用户' : '全体用户' }}</strong>
+              <span v-if="recipientNames" class="audience-names">{{ recipientNames }}</span>
+              <button
+                type="button"
+                :disabled="busy || !!pending"
+                aria-haspopup="dialog"
+                @click="recipientDialog?.open(recipients)"
+              >
+                更改
+              </button>
+            </div>
+          </div>
           <div class="announcement-field">
             <label for="announcement-title">公告标题 <span>*</span></label
             ><input
@@ -149,9 +155,7 @@ onBeforeUnmount(() => {
               :readonly="!!pending"
               :disabled="busy"
               autocomplete="off"
-            /><small :class="{ invalid: Array.from(title).length > 120 }">{{
-              Array.from(title).length > 120 ? '标题超过120字' : '最多 120 字'
-            }}</small>
+            /><small v-if="Array.from(title).length > 120" class="invalid">标题超过120字</small>
           </div>
           <div class="announcement-field">
             <label for="announcement-content">公告正文 <span>*</span></label
@@ -161,20 +165,13 @@ onBeforeUnmount(() => {
               required
               :readonly="!!pending"
               :disabled="busy"
-            /><small :class="{ invalid: Array.from(content).length > 10000 }">{{
-              Array.from(content).length > 10000 ? '正文超过10000字' : '最多 10000 字'
-            }}</small>
+            /><small v-if="Array.from(content).length > 10000" class="invalid"
+              >正文超过10000字</small
+            >
           </div>
-          <p class="announcement-reminder">
-            <span aria-hidden="true">ⓘ</span>发布后不可编辑，如需更正可撤回后重新发布。
-          </p>
           <p v-if="actionError" role="alert" class="announcement-error">{{ actionError }}</p>
           <footer class="announcement-actions">
-            <button type="button" :disabled="busy || !!pending || !dirty" @click="ask('clear')">
-              清空内容</button
-            ><button class="primary" type="submit" :disabled="busy">
-              {{ busy ? '正在发布…' : pending ? '重试发布' : '发布公告' }}
-            </button>
+            <button class="primary" type="submit" :disabled="busy">发布公告</button>
           </footer>
         </form>
         <section v-else class="announcement-records" aria-label="公告记录">
@@ -211,6 +208,7 @@ onBeforeUnmount(() => {
                   </div>
                   <p>
                     <time :datetime="row.publishedAt">{{ time(row.publishedAt) }}</time>
+                    <span>{{ row.audience === 'TARGETED' ? '指定用户' : '全体用户' }}</span>
                   </p>
                 </div>
                 <div class="record-actions">
@@ -235,6 +233,7 @@ onBeforeUnmount(() => {
         </section>
       </main>
     </div>
+    <AnnouncementRecipientDialog ref="recipientDialog" @save="recipients = $event" />
     <dialog
       ref="confirmation"
       class="announcement-dialog"
@@ -242,36 +241,22 @@ onBeforeUnmount(() => {
       @cancel="busy ? $event.preventDefault() : closeConfirmation()"
     >
       <h2 id="announcement-confirm-title">
-        {{
-          confirming?.kind === 'clear'
-            ? '清空公告内容？'
-            : confirming?.kind === 'withdraw'
-              ? '确认撤回公告？'
-              : '确认发布全体公告？'
-        }}
+        {{ confirming?.kind === 'withdraw' ? '确认撤回公告？' : '确认发布公告？' }}
       </h2>
       <template v-if="confirming?.kind === 'publish'"
         ><p class="confirmation-title">{{ pending?.title || title }}</p>
-        <p>公告将对所有用户可见，发布后不可编辑。</p></template
+        <p>{{ recipientNames ? `发送给 ${recipientNames}` : '发送给全体用户' }}</p>
+        <p>发布后不可编辑，如需更正可撤回后重新发布。</p></template
       >
       <template v-else-if="confirming?.kind === 'withdraw'"
         ><p class="confirmation-title">{{ confirming.row?.title }}</p>
         <p>撤回后，用户将无法查看这条公告。</p></template
       >
-      <p v-else>清空后需要重新填写标题和正文。</p>
       <p v-if="actionError" role="alert" class="announcement-error">{{ actionError }}</p>
       <footer class="announcement-actions">
         <button :disabled="busy" @click="closeConfirmation">取消</button
         ><button class="primary" :disabled="busy" @click="confirm">
-          {{
-            busy
-              ? '正在提交…'
-              : confirming?.kind === 'clear'
-                ? '确认清空'
-                : confirming?.kind === 'withdraw'
-                  ? '确认撤回'
-                  : '确认发布'
-          }}
+          {{ busy ? '正在提交…' : confirming?.kind === 'withdraw' ? '确认撤回' : '确认发布' }}
         </button>
       </footer>
     </dialog>
@@ -286,6 +271,7 @@ onBeforeUnmount(() => {
             <h2 id="announcement-detail-title">{{ detail?.title || '公告详情' }}</h2>
             <div v-if="detail" class="announcement-detail-meta">
               <time :datetime="detail.publishedAt">{{ readingTime(detail.publishedAt) }}</time>
+              <span>{{ detail.audience === 'TARGETED' ? '指定用户' : '全体用户' }}</span>
               <span
                 class="announcement-status"
                 :class="{ withdrawn: detail.status === 'WITHDRAWN' }"

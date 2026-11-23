@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum UserErrorCode implements ErrorCode {
+    MUTED("USER_MUTED", HttpStatus.FORBIDDEN, "你的账号已被禁言，暂时无法发布点评或回复。可在「消息」中查看通知。"),
+    MUTE_TARGET_UNAVAILABLE("USER_MUTE_TARGET_UNAVAILABLE", HttpStatus.NOT_FOUND, "该账号不可进行禁言操作"),
     PUBLIC_PROFILE_NOT_FOUND("USER_PUBLIC_PROFILE_NOT_FOUND", HttpStatus.NOT_FOUND, "用户主页不可用"),
     PUBLIC_PROFILE_INVALID("USER_PUBLIC_PROFILE_INVALID", HttpStatus.BAD_REQUEST, "用户编号无效"),
     BIO_INVALID("USER_BIO_INVALID", HttpStatus.BAD_REQUEST, "个人简介包含不支持的字符"),

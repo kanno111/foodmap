@@ -44,8 +44,8 @@ ES 监控的实际故障验证见[故障演练报告](history/elasticsearch-metr
 - 业务访谈：[社区业务规则讨论记录](plans/community-rules.md)，逐项确认“我的”、消息、互动、风控及相关未完成业务，区分待讨论、暂定、已确认与暂缓，不代表已经实现。
 - 社区页面：[前端接入状态](plans/community-frontend.md)，覆盖个人中心、个人主页、消息、设置及内容互动入口；区分真实可用与等待后端的能力。
 - 点赞数据：[点赞关系表](architecture/mysql-schema.md#content-likes)，字段与唯一关系约束；接口见[点评与回复点赞](api/reviews.md#likes)。
-- 全体公告：[管理员发布、查询及撤回](api/notifications.md#admin-announcements)、[用户详情及系统消息合并](api/notifications.md#announcements)；管理端`/admin/announcements`和用户系统消息已接入。
-- 通知数据：[通知表结构](architecture/mysql-schema.md#notification-inbox)，包含业务通知、全体公告及公告个人状态的字段、枚举、索引及约束。
+- 公告：[全体及指定用户发布、收件人查询、记录与撤回](api/notifications.md#admin-announcements)、[用户详情及系统消息合并](api/notifications.md#announcements)。
+- 通知数据：[通知表结构](architecture/mysql-schema.md#notification-inbox)，包含业务通知、公告、指定收件人及个人状态。
 - 本人点评：[本人点评按店铺分组](api/reviews.md#my-reviews)、[点评表结构](architecture/mysql-schema.md#review-schema)；私有跨店分页、历史与删除已接通。
 - 基础关注：[关系、名单与首次通知](api/community.md#follows)，名单默认私密，人数向登录用户展示。
 - 店铺收藏：[收藏与隐私接口](api/community.md#favorites)，详情收藏、本人/公开列表及默认私密的设置。

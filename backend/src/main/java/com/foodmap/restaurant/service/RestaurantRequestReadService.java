@@ -22,6 +22,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /** 管理申请的公开应用服务；仅查询，不改变审核状态，不把审核快照当作正式商户发布。 */
 @Service
@@ -35,6 +36,18 @@ public class RestaurantRequestReadService {
     private final MediaFileService files;
     private final ObjectMapper json;
     private final RestaurantPhotoMapper publishedPhotos;
+
+    /** 新店、纠错和已收录关联的通过申请按申请计数。 */
+    @Transactional(readOnly = true)
+    public Map<Long, Long> countApprovedBySubmitters(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return requests.countApprovedBySubmitters(ids).stream().collect(Collectors.toMap(
+                RestaurantRequestReadMapper.SubmitterCount::submittedBy,
+                RestaurantRequestReadMapper.SubmitterCount::total));
+    }
+
     private static final List<String> FIELDS =
             List.of(
                     "name",

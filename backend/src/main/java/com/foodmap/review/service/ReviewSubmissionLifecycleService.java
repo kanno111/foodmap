@@ -8,6 +8,7 @@ import com.foodmap.review.exception.ReviewErrorCode;
 import com.foodmap.review.mapper.ReviewSubmissionMapper;
 import com.foodmap.review.policy.ReviewSubmissionPolicy;
 import com.foodmap.security.service.CurrentActorService;
+import com.foodmap.user.service.UserMuteService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +29,7 @@ public class ReviewSubmissionLifecycleService {
     private final ReviewSubmissionService creation;
     private final MediaFileService media;
     private final CurrentActorService actors;
+    private final UserMuteService userMute;
 
     /** 管理员只验证原作者和待发布状态，不读取HTTP点评内容；驳回保留WAITING，等待本人重提。 */
     @PreAuthorize("hasRole('ADMIN')")
@@ -58,6 +60,7 @@ public class ReviewSubmissionLifecycleService {
         }
         requireWaiting(row, owner);
         if (input != null) {
+            userMute.requireUnmuted(owner);
             replaceContent(row, input);
         }
         return row.getContentHash();
@@ -97,6 +100,7 @@ public class ReviewSubmissionLifecycleService {
             return;
         }
         requireWaiting(row, owner);
+        userMute.requireUnmuted(owner);
         if (input != null) {
             replaceContent(row, input);
         }

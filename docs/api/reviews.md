@@ -57,6 +57,8 @@ UUID必填；四维完整，0–10且步进0.5；recommendation必填且仅接�
 
 点评、图片和计分统计同事务。每次真实发布保留历史；同一作者每店只取最新有效点评计分，不重复增加计分人数。无效输入400 `REVIEW_INVALID_INPUT`或`COMMON_MALFORMED_REQUEST`；并发/锁竞争重试耗尽503 `REVIEW_TEMPORARILY_UNAVAILABLE`，保留原UUID重试。
 
+账号被[禁言](account.md#admin-user-mute)时，新点评返回 403 `USER_MUTED`，原成功请求仍可查询到幂等回执。
+
 **副作用与限制**
 
 三种态度均按所填四维评分正常计分，态度仅在单条点评展示。推荐／不推荐保留旧版内容摘要算法，因此旧成功请求以新字段重试仍可命中原回执；一般使用独立摘要版本。同一UUID改变态度返回409 `REVIEW_REQUEST_CONFLICT`。所有点评读取、历史、个人点评及回复定位响应使用同一三态字段，不再返回`recommended`。
@@ -233,6 +235,8 @@ UUID必填，正文去首尾Unicode空白后1–200码点；作者与时间由�
 **错误码**
 
 两者禁止缓存，支持最新和历史点评，父店或点评不存在/已删除不可访问。非法字段400 `REPLY_INVALID_INPUT`或通用错误；游标错误400 `REPLY_INVALID_CURSOR`；点评不存在404 `REPLY_REVIEW_NOT_FOUND`；父店隐藏404 `RESTAURANT_NOT_FOUND`；竞争/超时耗尽503 `REPLY_TEMPORARILY_UNAVAILABLE`。游标不是授权令牌，跨段不保证固定快照。
+
+账号被[禁言](account.md#admin-user-mute)时，新回复返回 403 `USER_MUTED`，原成功请求仍可查询到幂等回执。
 
 **副作用与限制**
 

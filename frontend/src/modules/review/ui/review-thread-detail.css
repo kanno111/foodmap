@@ -476,3 +476,41 @@ textarea:focus-visible {
     opacity: 0.5;
   }
 }
+.reply-composer.mute-reply .reply-error {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fbf0ed;
+  color: #a84338;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.detail-replies .mute-reply .detail-input-label {
+  position: static;
+  flex: 0 0 100%;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  color: #657484;
+  font-size: 12px;
+}
+.detail-replies .mute-reply textarea {
+  flex: 0 0 100%;
+  width: 100%;
+  border-radius: 7px;
+}
+.detail-replies .mute-reply .reply-error {
+  order: 1;
+}
+.detail-replies .mute-reply .send-action,
+.detail-replies .mute-reply .send-action:hover:not(:disabled) {
+  order: 2;
+  min-height: 38px;
+  margin-left: auto;
+  padding: 0 16px;
+  border-radius: 7px;
+  background: #e98527;
+  color: white;
+}

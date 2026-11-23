@@ -166,6 +166,38 @@ class ReviewWriteApiIntegrationTest {
         return jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
     }
 
+    @Test
+    void currentMuteBlocksNewReviewsAndRepliesButKeepsSessionAndExistingContentActions()
+            throws Exception {
+        var created = input(8, true, UUID.randomUUID().toString());
+        publish(owner, 1, created).andExpect(status().isCreated());
+        long existing = jdbc.queryForObject("SELECT id FROM reviews WHERE author_user_id=11", Long.class);
+        long target = publishId(other, 7, true);
+        jdbc.update("UPDATE users SET muted_at=CURRENT_TIMESTAMP(6) WHERE id=11");
+
+        var next = input(8, true, UUID.randomUUID().toString());
+        publish(owner, 1, next).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_MUTED"));
+        String reply = json.writeValueAsString(Map.of(
+                "clientRequestId", UUID.randomUUID().toString(), "body", "这个回复暂未发布"));
+        mvc.perform(post("/api/reviews/" + target + "/replies")
+                        .header("Authorization", "Bearer " + owner)
+                        .contentType(MediaType.APPLICATION_JSON).content(reply))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("USER_MUTED"));
+        assertThat(count("reviews")).isEqualTo(2);
+        assertThat(count("review_replies")).isZero();
+        publish(owner, 1, created).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replayed").value(true));
+        removeReview(owner, existing).andExpect(status().isNoContent());
+
+        jdbc.update("UPDATE users SET muted_at=NULL WHERE id=11");
+        publish(owner, 1, next).andExpect(status().isCreated());
+        mvc.perform(post("/api/reviews/" + target + "/replies")
+                        .header("Authorization", "Bearer " + owner)
+                        .contentType(MediaType.APPLICATION_JSON).content(reply))
+                .andExpect(status().isCreated());
+    }
+
     private void assertStats(long total, long people, long recommended, String sum) {
         var row =
                 jdbc.queryForMap(

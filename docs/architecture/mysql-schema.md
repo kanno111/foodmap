@@ -79,6 +79,7 @@ user模块拥有`users`、`roles`、`user_roles`和`security_audit_events`，分
 | `email_verified` | `tinyint(1)` | 否 | 默认0；邮箱是否已验证。 |
 | `email_verified_at` | `timestamp(6)` | 是 | 默认NULL；邮箱验证完成时间。 |
 | `status` | `varchar(20)` | 否 | 默认ACTIVE；ACTIVE正常、LOCKED锁定、DISABLED禁用、DELETED已删除。 |
+| `muted_at` | `timestamp(6)` | 是 | V55新增，默认NULL；非空为禁言开始时间，解禁时清空。 |
 | `student_verification_status` | `varchar(20)` | 否 | 默认PENDING；PENDING待认证、VERIFIED已认证、REJECTED认证驳回。 |
 | `credential_version` | `bigint unsigned` | 否 | 默认0；账号凭证版本。 |
 | `row_version` | `bigint unsigned` | 否 | 默认0；记录版本号。 |
@@ -702,7 +703,7 @@ growth模块拥有经验账户与奖励记录两张表。存储引擎InnoDB，�
 
 ## 通知表结构
 
-notification模块拥有`notification_messages`、`notification_announcements`和`notification_announcement_user_states`，分别保存业务通知、全体公告及公告个人状态。存储引擎InnoDB，字符集utf8mb4，默认排序规则utf8mb4_0900_ai_ci；编码字段使用ascii_bin。
+notification模块保存业务通知、公告、公告收件人和公告个人状态。存储引擎InnoDB，字符集utf8mb4，默认排序规则utf8mb4_0900_ai_ci；编码字段使用ascii_bin。
 
 ### `notification_messages`：通知消息
 
@@ -745,22 +746,23 @@ notification模块拥有`notification_messages`、`notification_announcements`�
 - 类型与状态编码精确匹配；非空read_at不得早于created_at；约束chk_notification_deleted要求非空deleted_at不得早于created_at。
 - 用户、申请、点评、回复、点赞及关注关系均为跨模块逻辑引用，无物理外键。
 
-### `notification_announcements`：全体公告
+### `notification_announcements`：公告
 
 | 字段 | 类型 | 可空 | 默认值及含义 |
 | --- | --- | --- | --- |
 | `id` | `bigint unsigned` | 否 | 自增主键；公告ID。 |
 | `client_request_id` | `binary(16)` | 否 | 无默认值；发布请求UUID。 |
-| `request_hash` | `binary(32)` | 否 | 无默认值；规范化发布内容的SHA-256摘要。 |
+| `request_hash` | `binary(32)` | 否 | 无默认值；规范化发布内容的SHA-256摘要，指定发布包含去重排序后的收件人ID。 |
 | `title` | `varchar(120)` | 否 | 无默认值；公告标题。 |
 | `content` | `text` | 否 | 无默认值；公告正文，最多10000字符。 |
-| `status` | `varchar(16)`，ASCII/ascii_bin | 否 | 默认PUBLISHED；PUBLISHED已发布、WITHDRAWN已撤回。 |
+| `status` | `varchar(24)`，ASCII/ascii_bin | 否 | 全体公告使用PUBLISHED（默认）和WITHDRAWN；指定公告使用TARGETED_PUBLISHED和TARGETED_WITHDRAWN，避免旧服务回滚时将指定公告显示在全体收件箱。 |
+| `audience` | `varchar(16)`，ASCII/ascii_bin | 否 | 默认ALL（全体用户）；TARGETED（指定用户）。V54沿用ALL作为历史公告范围。 |
 | `published_by` | `bigint unsigned` | 否 | 无默认值；发布管理员用户逻辑ID，1～9223372036854775807。 |
 | `published_at` | `timestamp(6)` | 否 | 默认CURRENT_TIMESTAMP(6)；发布时间。 |
 | `withdrawn_by` | `bigint unsigned` | 是 | 默认NULL；撤回管理员用户逻辑ID，非空时1～9223372036854775807。 |
 | `withdrawn_at` | `timestamp(6)` | 是 | 默认NULL；首次撤回时间。 |
 
-主键`(id)`；唯一键`uk_announcement_publish_request(published_by,client_request_id)`；普通索引`idx_announcement_status_time(status,published_at DESC,id DESC)`；无物理外键，管理员ID为用户模块逻辑引用。无接收范围字段、指定接收人关联或到期字段。
+主键`(id)`；唯一键`uk_announcement_publish_request(published_by,client_request_id)`；普通索引`idx_announcement_status_time(status,published_at DESC,id DESC)`；管理员ID为用户模块逻辑引用。
 
 CHECK约束：
 
@@ -768,6 +770,16 @@ CHECK约束：
 - `chk_announcement_title`：TRIM后标题长度1～120。
 - `chk_announcement_content`：TRIM后正文至少1字符，原正文不超过10000字符。
 - `chk_announcement_lifecycle`：状态使用精确大小写枚举；PUBLISHED的撤回人/时间均为空；WITHDRAWN的撤回人/时间均非空、撤回人在正Long范围，撤回时间不早于发布时间。
+- `chk_announcement_audience`：限定ALL或TARGETED，且须和对应的存储状态匹配。
+
+### `notification_announcement_recipients`：指定公告收件人
+
+| 字段 | 类型 | 可空 | 默认值及含义 |
+| --- | --- | --- | --- |
+| `announcement_id` | `bigint unsigned` | 否 | 无默认值；公告ID。 |
+| `user_id` | `bigint unsigned` | 否 | 无默认值；收件账号逻辑ID，限定正Long范围。 |
+
+联合主键`(announcement_id,user_id)`；公告ID同模块物理外键，删除和更新均为RESTRICT。指定公告和收件名单在同一事务写入，撤回保留名单。全体公告不写收件人行。
 
 ### `notification_announcement_user_states`：公告个人状态
 

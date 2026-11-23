@@ -2274,6 +2274,23 @@ class RestaurantJointSubmissionApiIntegrationTest {
         return call(post(ENDPOINT), owner, input);
     }
 
+    @Test
+    void mutedOwnerCanSubmitRestaurantButCannotAttachAReview() throws Exception {
+        jdbc.update("UPDATE users SET muted_at=CURRENT_TIMESTAMP(6) WHERE id=11");
+        var input = shop();
+        input.put("review", review("RECOMMENDED"));
+        submit(input).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("USER_MUTED"));
+        assertNoApplication();
+        submit(shop()).andExpect(status().isCreated());
+        assertThat(count("restaurant_change_requests")).isEqualTo(1);
+        assertThat(count("review_submissions")).isZero();
+
+        jdbc.update("UPDATE users SET muted_at=NULL WHERE id=11");
+        submit(input).andExpect(status().isCreated());
+        assertThat(count("review_submissions")).isEqualTo(1);
+    }
+
     private ResultActions call(
             MockHttpServletRequestBuilder request, String token, Map<String, ?> input)
             throws Exception {

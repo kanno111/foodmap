@@ -17,6 +17,7 @@ import com.foodmap.review.policy.ReviewPublishPolicy;
 import com.foodmap.review.vo.ReviewPublishVo;
 import com.foodmap.security.service.CurrentActorService;
 import com.foodmap.statistics.service.ActivityContributionService;
+import com.foodmap.user.service.UserMuteService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -48,6 +49,7 @@ public class ReviewWriteService {
     private final ReviewPhotoMapper photos;
     private final GrowthRewardApplicationService growth;
     private final ActivityContributionService activity;
+    private final UserMuteService userMute;
 
     /** 事务最多重试三次，仅处理并发锁/唯一键竞争，不掩盖普通SQL或统计错误。 */
     @PreAuthorize("isAuthenticated()")
@@ -109,6 +111,9 @@ public class ReviewWriteService {
                 throw new BusinessException(ReviewErrorCode.REQUEST_CONFLICT);
             }
             return result(existing, true);
+        }
+        if (!fromSubmission) {
+            userMute.requireUnmuted(row.getAuthorUserId());
         }
         var previous = mapper.latest(row.getRestaurantId(), row.getAuthorUserId());
         row.setCreatedAt(previous == null ? null : previous.getCreatedAt());

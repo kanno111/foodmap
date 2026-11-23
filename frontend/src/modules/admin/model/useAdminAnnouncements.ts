@@ -13,6 +13,7 @@ import {
   type AnnouncementDetail,
   type AnnouncementPage,
   type AnnouncementInput,
+  type AnnouncementRecipient,
   type AnnouncementStatus,
 } from '@/modules/announcement'
 /** 公告发布与记录共用身份上下文；换号取消在途请求并丢弃旧账号全部草稿和回执。 */
@@ -32,13 +33,16 @@ export function useAdminAnnouncements() {
     notice = ref('')
   const pending = ref<AnnouncementInput | null>(null),
     page = ref(1)
+  const recipients = ref<AnnouncementRecipient[]>([])
   let context = 0,
     version = 0,
     detailVersion = 0
   let readAbort: AbortController | undefined,
     writeAbort: AbortController | undefined,
     detailAbort: AbortController | undefined
-  const dirty = computed(() => !!title.value || !!content.value || !!pending.value)
+  const dirty = computed(
+    () => !!title.value || !!content.value || !!pending.value || recipients.value.length > 0,
+  )
   const identity = () =>
     auth.isAdministrator && authToken.value && auth.user
       ? { token: authToken.value, userId: auth.user.id, context }
@@ -72,7 +76,7 @@ export function useAdminAnnouncements() {
       if (valid(actor) && ticket === version) loading.value = false
     }
   }
-  /** 发布失败保留原UUID及冻结的正文，重试不会创建第二条；成功后的读取失败只重试GET。 */
+  /** 发布结果不明时冻结正文及收件人，使用原UUID重试。 */
   async function publish() {
     const actor = identity()
     if (!actor || busy.value || (!pending.value && !validForm.value)) return false
@@ -80,6 +84,9 @@ export function useAdminAnnouncements() {
       clientRequestId: createRequestId(),
       title: normalizeAnnouncementText(title.value),
       content: normalizeAnnouncementText(content.value),
+      ...(recipients.value.length > 0
+        ? { recipientUserIds: recipients.value.map(({ id }) => id) }
+        : {}),
     }
     busy.value = true
     actionError.value = ''
@@ -95,6 +102,7 @@ export function useAdminAnnouncements() {
       pending.value = null
       title.value = ''
       content.value = ''
+      recipients.value = []
       tab.value = 'records'
       status.value = 'ALL'
       notice.value =
@@ -157,10 +165,6 @@ export function useAdminAnnouncements() {
       if (valid(actor)) busy.value = false
     }
   }
-  function clearDraft() {
-    if (busy.value || pending.value) return
-    title.value = content.value = actionError.value = ''
-  }
   function reset() {
     context++
     version++
@@ -170,6 +174,7 @@ export function useAdminAnnouncements() {
     detailAbort?.abort()
     title.value = content.value = error.value = actionError.value = notice.value = ''
     pending.value = null
+    recipients.value = []
     result.value = detail.value = null
     busy.value = loading.value = inspecting.value = false
     tab.value = 'publish'
@@ -195,6 +200,7 @@ export function useAdminAnnouncements() {
     actionError,
     notice,
     pending,
+    recipients,
     page,
     dirty,
     validForm,
@@ -202,6 +208,5 @@ export function useAdminAnnouncements() {
     publish,
     inspect,
     withdraw,
-    clearDraft,
   }
 }

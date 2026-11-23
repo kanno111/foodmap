@@ -91,6 +91,8 @@
 
 `POST /api/restaurant-submissions`，有效Bearer、普通用户可用、`Content-Type: application/json`。在上述店铺字段外，可提供可选的`review`对象。只允许普通餐厅REGULAR附带点评；食堂投稿暂不附带点评，返回400 `RESTAURANT_INVALID_INPUT`；收录后可在详情直接评价食堂。普通餐厅沿用停业可评规则，businessStatus=CLOSED不排除此能力。
 
+账号被[禁言](account.md#admin-user-mute)时，新增、修改或随申请重提附带点评返回 403 `USER_MUTED`，对应写入回滚。单独提交店铺资料或在待审期间仅修改店铺资料仍可用。禁言前已提交的附带点评沿用原审核规则。
+
 ```json
 {
   "clientRequestId":"2bd0946c-291c-49af-8670-319ca4f64f5d",

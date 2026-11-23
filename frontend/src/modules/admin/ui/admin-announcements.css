@@ -1,4 +1,3 @@
-/* 发布页遵循确认稿：单列纯文本表单，不增加预览、定向接收或草稿区域。 */
 .announcement-workspace {
   min-height: 100vh;
   color: var(--admin-text);
@@ -63,23 +62,43 @@ h2 {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--admin-muted);
-  margin: 0 0 20px;
-  font-size: 13px;
+  min-height: 46px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--admin-surface-muted);
+  font-size: 14px;
 }
-.announcement-audience svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
+.announcement-audience strong {
+  flex: none;
+  font-weight: 600;
+}
+.announcement-audience .audience-names {
+  overflow: hidden;
+  border-left: 1px solid var(--admin-border);
+  padding-left: 10px;
+  color: var(--admin-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.announcement-audience button {
+  flex: none;
+  margin-left: auto;
+  padding: 7px 0 7px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--admin-accent-text);
+  font-size: inherit;
+}
+.announcement-field.audience-field {
+  margin-top: 0;
 }
 .announcement-field {
   display: flex;
   flex-direction: column;
   margin-top: 20px;
 }
-.announcement-field label {
+.announcement-field label,
+.announcement-field .audience-label {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 9px;
@@ -116,18 +135,6 @@ h2 {
 .announcement-field .invalid,
 .announcement-error {
   color: var(--admin-danger);
-}
-.announcement-reminder {
-  color: var(--admin-muted);
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  line-height: 1.7;
-  margin: 24px 0;
-  font-size: 14px;
-}
-.announcement-reminder > span {
-  font-size: 20px;
 }
 .announcement-actions {
   display: flex;

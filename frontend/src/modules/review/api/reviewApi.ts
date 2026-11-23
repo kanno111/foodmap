@@ -1,4 +1,9 @@
-import { isReviewRecommendation, type ReviewRecommendation } from '../model/review'
+import { isAxiosError } from 'axios'
+import {
+  isReviewRecommendation,
+  ReviewMutedError,
+  type ReviewRecommendation,
+} from '../model/review'
 import { httpClient } from '@/shared/api/httpClient'
 import { getAccessToken } from '@/shared/api/authSession'
 import type { ApiResponse } from '@/shared/api/api.types'
@@ -16,6 +21,9 @@ import type {
   ReplyReceipt,
 } from '../model/review'
 import { uploadImage, cancelImage } from '@/modules/file/api/mediaApi'
+
+const isMuted = (error: unknown) =>
+  isAxiosError<ApiResponse<unknown>>(error) && error.response?.data?.code === 'USER_MUTED'
 
 /** 固定提交开始时的凭证，避免请求排队期间账号变化而以新账号发布旧草稿。 */
 export async function publishTextReview(draft: ReviewDraft): Promise<ReviewPublishReceipt> {
@@ -55,6 +63,7 @@ export async function publishTextReview(draft: ReviewDraft): Promise<ReviewPubli
     }
     return receipt
   } catch (reason) {
+    if (isMuted(reason)) throw new ReviewMutedError('review')
     throw new Error(
       `${toErrorMessage(reason)}。正文已保留；超时可能已经保存，同内容重试不会重复发布。`,
       { cause: reason },
@@ -327,6 +336,7 @@ export async function publishReply(
       throw new Error('回复结果无法确认')
     return receipt
   } catch (reason) {
+    if (isMuted(reason)) throw new ReviewMutedError('reply')
     throw new Error(
       `${toErrorMessage(reason)}。文字已保留；超时可能已经保存，同内容重试不会重复回复。`,
       { cause: reason },

@@ -57,6 +57,32 @@
   background: #eeeee9;
 }
 
+:is(form.registration-form, form.password-reset-form) .send-code-error {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: #9c362a;
+  background: #fff2ef;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.send-code-error span {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+}
+
 :is(form.login-form, form.registration-form, form.password-reset-form) .form-field input,
 form.registration-form .form-field .email-input {
   background-color: #f7f7f5;
@@ -73,6 +99,12 @@ form.registration-form .form-field .email-input:focus-within {
 
 form.registration-form .email-input input:focus {
   border: 0;
+}
+
+:is(form.registration-form, form.password-reset-form)
+  .form-field
+  .verification-code-input[aria-invalid='true'] {
+  border-color: #dca095;
 }
 
 :is(form.login-form, form.registration-form, form.password-reset-form) .form-field input:autofill {

@@ -48,6 +48,11 @@ const router = createRouter({
       meta: { title: '举报处理 · 管理工作台', layout: 'admin' },
     },
     {
+      path: '/admin/users',
+      component: () => import('@/pages/admin/AdminUserPage.vue'),
+      meta: { title: '用户管理 · 管理工作台', layout: 'admin' },
+    },
+    {
       path: '/admin/restaurants',
       component: () => import('@/pages/admin/AdminRestaurantPage.vue'),
       meta: { title: '商户管理 · 管理工作台', layout: 'admin' },

@@ -337,6 +337,42 @@ describe('review interactions matching the original site', () => {
     expect(router.currentRoute.value.query.redirect).toBe('/?writeReview=1')
     expect(fetchRestaurants).not.toHaveBeenCalled()
   })
+  it('accepts file drops on the photo area and blocks navigation outside it while open', async () => {
+    login()
+    await mount(ReviewComposer, { restaurant: restaurantFixture, fixedTarget: true })
+    await open()
+    const picker = host.querySelector('.photo-picker')!
+    const invalidFile = new File(['text'], 'notes.txt', { type: 'text/plain' })
+    function drag(target: EventTarget, type: string, files: File[], types = ['Files']) {
+      const event = new Event(type, { cancelable: true, bubbles: true })
+      const transfer = { types, files, dropEffect: 'none' }
+      Object.defineProperty(event, 'dataTransfer', { value: transfer })
+      target.dispatchEvent(event)
+      return { event, transfer }
+    }
+
+    const hovering = drag(picker, 'dragover', [])
+    await nextTick()
+    expect(hovering.event.defaultPrevented).toBe(true)
+    expect(hovering.transfer.dropEffect).toBe('copy')
+    expect(picker.classList.contains('dragging-photos')).toBe(true)
+
+    const outside = drag(document.body, 'drop', [invalidFile])
+    await nextTick()
+    expect(outside.event.defaultPrevented).toBe(true)
+    expect(picker.classList.contains('dragging-photos')).toBe(false)
+    expect(host.querySelector('.submit-feedback')).toBeNull()
+    expect(
+      drag(host.querySelector('#review-body')!, 'drop', [], ['text/plain']).event.defaultPrevented,
+    ).toBe(false)
+
+    expect(drag(picker, 'drop', [invalidFile]).event.defaultPrevented).toBe(true)
+    await settle()
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('请选择JPEG、PNG或WebP图片')
+    host.querySelector<HTMLButtonElement>('[aria-label="关闭评价"]')!.click()
+    await nextTick()
+    expect(drag(document.body, 'drop', [invalidFile]).event.defaultPrevented).toBe(false)
+  })
   it('loads restaurant pages on demand, including closed restaurants, with original rating defaults', async () => {
     login()
     vi.mocked(fetchRestaurants)

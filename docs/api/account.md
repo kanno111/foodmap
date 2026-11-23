@@ -17,12 +17,50 @@
 | GET | `/auth/me` | Bearer | 200 | [当前身份与退出](#identity-logout) |
 | POST | `/auth/logout` | Bearer | 200 | [当前身份与退出](#identity-logout) |
 | GET | `/api/admin/me` | 管理员 | 200 | [工作台身份校验](#admin-session) |
+| GET | `/api/admin/users` | 管理员 | 200 | [管理端用户查询](#admin-user-directory) |
+| PUT | `/api/admin/users/{id}/mute` | 管理员 | 200 | [禁言和解禁](#admin-user-mute) |
 | GET | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
 | PATCH / PUT | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
 | PATCH | `/api/me/profile/username` | Bearer | 200 | [修改用户名](#username) |
 | PUT | `/api/me/avatar` | Bearer | 204 | [用户头像](#avatar) |
 | GET | `/api/users/{userId}/avatar` | 公开 | 200 JPEG / 204 | [用户头像](#avatar) |
 | GET | `/api/me/growth` | Bearer | 200 | [本人成长摘要](#growth) |
+
+<a id="admin-user-directory"></a>
+
+## 管理端用户查询
+
+**接口与权限**
+
+`GET /api/admin/users` 需要具有 `ROLE_ADMIN` 的有效 Bearer 会话。成功响应带 `Cache-Control: no-store`。
+
+**请求参数**
+
+可选 `keyword` 长度最多 32，去除首尾空白后匹配用户名中包含的文字。空白查全部。可选 `page` 默认 1，范围 1–1,000,000。可选 `pageSize` 默认 20，范围 1–50。已删除账号不列出。先按点评数降序排列，点评数相同再按投稿审核通过数降序排列，两项都相同时按用户 ID 降序排列。排序后分页。
+
+**响应**
+
+```json
+{"records":[{"id":"22","username":"校园食客","hasAvatar":true,"reviewCount":4,"approvedSubmissionCount":2,"mutedAt":null,"canModerate":true}],"total":1,"page":1,"pageSize":20,"totalPages":1}
+```
+
+`hasAvatar` 表示有绑定头像，可以通过[头像接口](#avatar)读取。点评数按仍保留的正式点评计，同一店的历史点评各算一条，待审附带点评不计入。投稿审核通过数包括通过的新店投稿、资料纠错和已收录关联。空结果返回空数组。
+
+`mutedAt` 为当前禁言开始时间，未禁言返回 null。`canModerate` 表示当前账号可进行禁言操作。
+
+**错误码**
+
+鉴权失败 401，普通账号 403，无效参数 400。错误格式见[通用错误](common.md#errors)。
+
+<a id="admin-user-mute"></a>
+
+## 禁言和解禁
+
+`PUT /api/admin/users/{id}/mute`，需管理员 Bearer。id 为正 Long 十进制字符串，请求体为 `{"muted":true}` 或 `{"muted":false}`。可操作已验证且启用的普通账号。成功 200，data 为 `{id,mutedAt}`，解禁后 mutedAt 为 null。
+
+状态发生变化时，同一事务向本人发送一条指定公告。同一状态重复设置返回当前结果，公告只在状态变化时新增。通知写入失败会回滚账号状态。非法参数返回 400，未登录返回 401，普通账号调用返回 403，目标账号不可操作或不存在返回 404 `USER_MUTE_TARGET_UNAVAILABLE`。
+
+禁言只约束[发布点评和回复](reviews.md#publish)及[新店附带点评操作](submissions.md#attached-review)。现有会话、已有内容的删除、浏览及消息读取仍可使用。
 
 <a id="avatar"></a>
 

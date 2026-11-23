@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -102,6 +103,7 @@ class AnnouncementApiIntegrationTest {
     void setup() {
         reset(sessions, messages, announcements, streams);
         jdbc.update("DELETE FROM notification_announcement_user_states");
+        jdbc.update("DELETE FROM notification_announcement_recipients");
         jdbc.update("DELETE FROM notification_announcements");
         jdbc.update("DELETE FROM notification_messages");
         jdbc.update("DELETE FROM user_roles");
@@ -189,6 +191,150 @@ class AnnouncementApiIntegrationTest {
                                 "SELECT COUNT(*) FROM notification_announcements", Long.class))
                 .isEqualTo(1);
         org.mockito.Mockito.verify(streams).changed(0);
+    }
+
+    @Test
+    void targetedAnnouncementAppearsOnlyForSelectedAccounts() throws Exception {
+        jdbc.update(
+                "INSERT INTO users(id,username,email,password_hash,email_verified)"
+                        + " VALUES(33,'later','later@example.test','fixture',TRUE)");
+        String excluded = token(33);
+        var request = UUID.randomUUID();
+        var sent = publishTargeted(other, request, List.of("11", "22"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.audience").value("TARGETED"));
+        long id = Long.parseLong(id(sent));
+        // 旧版本的收件箱只读取 PUBLISHED，回滚后也不会把指定公告当作全体公告。
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notification_announcements WHERE id=? AND status='PUBLISHED'",
+                Long.class, id)).isZero();
+        publishTargeted(other, request, List.of("22", "11", "11"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replayed").value(true))
+                .andExpect(jsonPath("$.data.id").value(Long.toString(id)));
+        publishTargeted(other, request, List.of("11")).andExpect(status().isConflict());
+        publish(other, request, "标题", "正文").andExpect(status().isConflict());
+        org.mockito.Mockito.verify(streams).changed(11);
+        org.mockito.Mockito.verify(streams).changed(22);
+        org.mockito.Mockito.verify(streams, org.mockito.Mockito.never()).changed(0);
+
+        inbox(owner, "SYSTEM", 1, 20)
+                .andExpect(jsonPath("$.data.records[0].announcementId").value(Long.toString(id)));
+        unread(owner, 1);
+        unread(other, 1);
+        inbox(excluded, "ALL", 1, 20)
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.latestSystem").isEmpty());
+        unread(excluded, 0);
+        mvc.perform(get("/api/me/announcements/" + id).header("Authorization", "Bearer " + excluded))
+                .andExpect(status().isNotFound());
+        read(excluded, id).andExpect(status().isNotFound());
+        remove(excluded, id).andExpect(status().isNotFound());
+        mvc.perform(post("/api/me/notifications/read-all")
+                        .header("Authorization", "Bearer " + excluded))
+                .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notification_announcement_user_states", Long.class)).isZero();
+
+        mvc.perform(get("/api/me/announcements/" + id).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.content").value("正文"));
+        mvc.perform(post("/api/me/notifications/read-all")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isNoContent());
+        unread(owner, 0);
+        remove(owner, id).andExpect(status().isNoContent());
+        unread(other, 1);
+
+        reset(streams);
+        withdraw(id).andExpect(status().isOk());
+        unread(other, 0);
+        org.mockito.Mockito.verify(streams).changed(11);
+        org.mockito.Mockito.verify(streams).changed(22);
+        org.mockito.Mockito.verifyNoMoreInteractions(streams);
+    }
+
+    @Test
+    void recipientSearchAndPublishRequireAdministratorAndEligibleRecipients() throws Exception {
+        jdbc.update("UPDATE users SET email_verified=FALSE WHERE id=11");
+        mvc.perform(get("/api/admin/announcements/recipients")
+                        .header("Authorization", "Bearer " + other)
+                        .param("keyword", "notice_"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value("22"));
+        mvc.perform(get("/api/admin/announcements/recipients")
+                        .header("Authorization", "Bearer " + other)
+                        .param("page", "0"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/admin/announcements/recipients"))
+                .andExpect(status().isUnauthorized());
+        jdbc.update("UPDATE users SET email_verified=TRUE WHERE id=11");
+        mvc.perform(get("/api/admin/announcements/recipients")
+                        .header("Authorization", "Bearer " + owner))
+                .andExpect(status().isForbidden());
+        publishTargeted(owner, UUID.randomUUID(), List.of("11")).andExpect(status().isForbidden());
+        publishTargeted(other, UUID.randomUUID(), List.of()).andExpect(status().isBadRequest());
+        publishTargeted(other, UUID.randomUUID(), List.of("11", "999")).andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notification_announcements", Long.class))
+                .isZero();
+        org.mockito.Mockito.verifyNoInteractions(streams);
+    }
+
+    @Test
+    void accountMuteAndNoticeCommitTogetherAndRepeatedOperationsSendOnlyOnce() throws Exception {
+        setMuted(owner, 11, true).andExpect(status().isForbidden());
+        setMuted(other, 22, true).andExpect(status().isNotFound());
+        org.mockito.Mockito.doThrow(new IllegalStateException("fixture delivery failure"))
+                .when(announcements)
+                .insertRecipients(anyLong(), org.mockito.ArgumentMatchers.anyList());
+        setMuted(other, 11, true).andExpect(status().isInternalServerError());
+        assertThat(jdbc.queryForObject("SELECT muted_at FROM users WHERE id=11", Instant.class))
+                .isNull();
+        unread(owner, 0);
+        org.mockito.Mockito.verifyNoInteractions(streams);
+        reset(announcements);
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var start = new CountDownLatch(1);
+            java.util.concurrent.Callable<String> mute = () -> {
+                start.await();
+                var body = setMuted(other, 11, true).andExpect(status().isOk()).andReturn()
+                        .getResponse().getContentAsString();
+                return new tools.jackson.databind.ObjectMapper()
+                        .readTree(body).at("/data/mutedAt").asText();
+            };
+            var first = pool.submit(mute);
+            var second = pool.submit(mute);
+            start.countDown();
+            assertThat(first.get(15, TimeUnit.SECONDS)).isEqualTo(second.get(15, TimeUnit.SECONDS));
+        }
+        mvc.perform(get("/api/admin/users").param("keyword", "notice_11")
+                        .header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].canModerate").value(true))
+                .andExpect(jsonPath("$.data.records[0].mutedAt").isNotEmpty());
+        mvc.perform(get("/auth/me").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk());
+        var listing = inbox(owner, "SYSTEM", 1, 20)
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].announcementTitle").value("你的账号已被禁言"));
+        String id = new tools.jackson.databind.ObjectMapper()
+                .readTree(listing.andReturn().getResponse().getContentAsString())
+                .at("/data/records/0/announcementId").asText();
+        mvc.perform(get("/api/me/announcements/" + id).header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$.data.content").value(org.hamcrest.Matchers.containsString(
+                        "由于你发布的内容违反了社区规则")));
+        unread(other, 0);
+
+        setMuted(other, 11, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mutedAt").isEmpty());
+        setMuted(other, 11, false).andExpect(status().isOk());
+        unread(other, 0);
+        inbox(owner, "SYSTEM", 1, 20)
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.records[0].announcementTitle").value("你的账号已解除禁言"));
+        org.mockito.Mockito.verify(streams, org.mockito.Mockito.times(2)).changed(11);
+        org.mockito.Mockito.verifyNoMoreInteractions(streams);
     }
 
     @Test
@@ -644,10 +790,28 @@ class AnnouncementApiIntegrationTest {
                         .content(body(uuid, title, content)));
     }
 
+    private ResultActions publishTargeted(String token, UUID uuid, List<String> recipients)
+            throws Exception {
+        String request = new tools.jackson.databind.ObjectMapper().writeValueAsString(
+                java.util.Map.of("clientRequestId", uuid.toString(), "title", "标题",
+                        "content", "正文", "recipientUserIds", recipients));
+        return mvc.perform(post("/api/admin/announcements/targeted")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content(request));
+    }
+
     private ResultActions withdraw(long id) throws Exception {
         return mvc.perform(
                 post("/api/admin/announcements/" + id + "/withdraw")
                         .header("Authorization", "Bearer " + other));
+    }
+
+    private ResultActions setMuted(String token, long user, boolean muted) throws Exception {
+        return mvc.perform(put("/api/admin/users/" + user + "/mute")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content("{\"muted\":" + muted + "}"));
     }
 
     private ResultActions read(String token, long id) throws Exception {

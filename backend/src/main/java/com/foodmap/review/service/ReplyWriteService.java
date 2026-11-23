@@ -11,6 +11,7 @@ import com.foodmap.review.mapper.ReplyMapper;
 import com.foodmap.review.policy.ReplyPolicy;
 import com.foodmap.review.vo.ReplyPublishVo;
 import com.foodmap.security.service.CurrentActorService;
+import com.foodmap.user.service.UserMuteService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -36,6 +37,7 @@ public class ReplyWriteService {
     private final CurrentActorService actors;
     private final PlatformTransactionManager transactions;
     private final NotificationPublicationService notifications;
+    private final UserMuteService userMute;
 
     /** 同一账号同UUID同正文返回原回执；最多三次完整事务重试。 */
     @PreAuthorize("isAuthenticated()")
@@ -76,6 +78,7 @@ public class ReplyWriteService {
             }
             return result(existing, true);
         }
+        userMute.requireUnmuted(row.getAuthorUserId());
         var latest = mapper.latest(row.getReviewId());
         row.setId(null);
         row.setCreatedAt(latest == null ? null : latest.getCreatedAt());
