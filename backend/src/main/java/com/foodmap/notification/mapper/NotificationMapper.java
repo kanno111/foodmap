@@ -35,7 +35,8 @@ public interface NotificationMapper {
                     + " created_at,s.read_at,NULL AS approval_mode,a.title AS announcement_title"
                     + " FROM notification_announcements a LEFT JOIN"
                     + " notification_announcement_user_states s ON s.announcement_id=a.id AND"
-                    + " s.user_id=#{owner} WHERE a.status='PUBLISHED' AND s.deleted_at IS NULL)"
+                    + " s.user_id=#{owner} WHERE " + AnnouncementMapper.PUBLISHED + " AND s.deleted_at IS NULL"
+                    + AnnouncementMapper.FOR_RECIPIENT + ")"
                     + " inbox";
 
     /** 同一终态申请只有一条通知；无变化分支不覆盖已读状态与原始快照。 */
@@ -117,8 +118,9 @@ public interface NotificationMapper {
     // 计数分别走来源索引后相加，不为导航红点物化包含标题的混合列表。
     String ANNOUNCEMENT_COUNT =
             " FROM notification_announcements a LEFT JOIN notification_announcement_user_states s"
-                + " ON s.announcement_id=a.id AND s.user_id=#{owner} WHERE a.status='PUBLISHED' AND"
-                + " s.deleted_at IS NULL AND #{category} IN ('ALL','SYSTEM')";
+                + " ON s.announcement_id=a.id AND s.user_id=#{owner} WHERE " + AnnouncementMapper.PUBLISHED + " AND"
+                + " s.deleted_at IS NULL AND #{category} IN ('ALL','SYSTEM')"
+                + AnnouncementMapper.FOR_RECIPIENT;
 
     @Select(
             "SELECT (SELECT COUNT(*) FROM notification_messages WHERE recipient_user_id=#{owner}"

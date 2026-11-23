@@ -11,14 +11,35 @@ import java.util.List;
 @Mapper
 public interface AnnouncementMapper {
     String COLUMNS =
-            "id,client_request_id,request_hash,title,content,status,published_by,published_at,withdrawn_by,withdrawn_at";
+            "id,client_request_id,request_hash,title,content,status,audience,published_by,published_at,withdrawn_by,withdrawn_at";
+
+    // 旧服务仍按 PUBLISHED 读取收件箱，独立状态避免回滚后把指定公告开放给全体。
+    String PUBLISHED = "a.status IN ('PUBLISHED','TARGETED_PUBLISHED')";
+    String FOR_RECIPIENT =
+            " AND (a.audience='ALL' OR EXISTS (SELECT 1 FROM notification_announcement_recipients r"
+                    + " WHERE r.announcement_id=a.id AND r.user_id=#{owner}))";
 
     @Insert(
             "INSERT INTO"
-                + " notification_announcements(client_request_id,request_hash,title,content,published_by)"
-                + " VALUES(#{clientRequestId},#{requestHash},#{title},#{content},#{publishedBy})")
+                + " notification_announcements(client_request_id,request_hash,title,content,published_by,audience,status)"
+                + " VALUES(#{clientRequestId},#{requestHash},#{title},#{content},#{publishedBy},#{audience},#{status})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(AnnouncementEntity row);
+
+    @Insert("""
+            <script>
+            INSERT INTO notification_announcement_recipients(announcement_id,user_id) VALUES
+            <foreach collection="ids" item="userId" separator=",">(#{id},#{userId})</foreach>
+            </script>
+            """)
+    int insertRecipients(@Param("id") long id, @Param("ids") List<Long> ids);
+
+    @Select("SELECT user_id FROM notification_announcement_recipients WHERE announcement_id=#{id}")
+    List<Long> recipients(long id);
+
+    @Select("SELECT EXISTS (SELECT 1 FROM notification_announcement_recipients"
+            + " WHERE announcement_id=#{id} AND user_id=#{owner})")
+    boolean isRecipient(@Param("id") long id, @Param("owner") long owner);
 
     @Select(
             "SELECT "
@@ -36,7 +57,8 @@ public interface AnnouncementMapper {
     @Select(
             "SELECT "
                     + COLUMNS
-                    + " FROM notification_announcements WHERE (#{status}='ALL' OR status=#{status})"
+                    + " FROM notification_announcements WHERE"
+                    + " (#{status}='ALL' OR status IN (#{status},CONCAT('TARGETED_',#{status})))"
                     + " ORDER BY published_at DESC,id DESC LIMIT #{limit} OFFSET #{offset}")
     List<AnnouncementEntity> page(
             @Param("status") String status,
@@ -44,14 +66,15 @@ public interface AnnouncementMapper {
             @Param("limit") int limit);
 
     @Select(
-            "SELECT COUNT(*) FROM notification_announcements WHERE (#{status}='ALL' OR"
-                    + " status=#{status})")
+            "SELECT COUNT(*) FROM notification_announcements WHERE"
+                    + " (#{status}='ALL' OR status IN (#{status},CONCAT('TARGETED_',#{status})))")
     long count(String status);
 
     @Update(
             "UPDATE notification_announcements SET"
-                + " status='WITHDRAWN',withdrawn_by=#{owner},withdrawn_at=GREATEST(CURRENT_TIMESTAMP(6),published_at)"
-                + " WHERE id=#{id} AND status='PUBLISHED'")
+                + " status=IF(audience='ALL','WITHDRAWN','TARGETED_WITHDRAWN'),"
+                + " withdrawn_by=#{owner},withdrawn_at=GREATEST(CURRENT_TIMESTAMP(6),published_at)"
+                + " WHERE id=#{id} AND status IN ('PUBLISHED','TARGETED_PUBLISHED')")
     int withdraw(@Param("id") long id, @Param("owner") long owner);
 
     @Select(
@@ -77,16 +100,17 @@ public interface AnnouncementMapper {
     @Select(
             "SELECT a.id FROM notification_announcements a LEFT JOIN"
                     + " notification_announcement_user_states s ON s.announcement_id=a.id AND"
-                    + " s.user_id=#{owner} WHERE a.status='PUBLISHED' AND s.deleted_at IS NULL AND"
-                    + " s.read_at IS NULL AND a.id>#{after} ORDER BY a.id LIMIT 500")
+                    + " s.user_id=#{owner} WHERE " + PUBLISHED + " AND s.deleted_at IS NULL AND"
+                    + " s.read_at IS NULL AND a.id>#{after}" + FOR_RECIPIENT
+                    + " ORDER BY a.id LIMIT 500")
     List<Long> unreadIds(@Param("owner") long owner, @Param("after") long after);
 
     @Select(
             "SELECT"
-                + " a.id,a.client_request_id,a.request_hash,a.title,a.content,a.status,a.published_by,a.published_at,a.withdrawn_by,a.withdrawn_at"
+                + " a.id,a.client_request_id,a.request_hash,a.title,a.content,a.status,a.audience,a.published_by,a.published_at,a.withdrawn_by,a.withdrawn_at"
                 + " FROM notification_announcements a LEFT JOIN"
                 + " notification_announcement_user_states s ON s.announcement_id=a.id AND"
-                + " s.user_id=#{owner} WHERE a.id=#{id} AND a.status='PUBLISHED' AND s.deleted_at"
-                + " IS NULL")
+                + " s.user_id=#{owner} WHERE a.id=#{id} AND " + PUBLISHED + " AND s.deleted_at"
+                + " IS NULL" + FOR_RECIPIENT)
     AnnouncementEntity visible(@Param("owner") long owner, @Param("id") long id);
 }

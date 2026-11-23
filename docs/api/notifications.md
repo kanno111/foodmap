@@ -15,17 +15,19 @@
 | DELETE | `/api/me/notifications/{id}` | Bearer | 204 | [删除本人单条消息](#delete) |
 | GET | `/api/me/notifications/unread` | Bearer | 200 | [实时未读红点](#unread-events) |
 | GET | `/api/me/notifications/events` | Bearer | 200 SSE | [实时未读红点](#unread-events) |
-| POST | `/api/admin/announcements` | 管理员 | 200 | [管理员全体公告](#admin-announcements) |
-| GET | `/api/admin/announcements` | 管理员 | 200 | [管理员全体公告](#admin-announcements) |
-| GET | `/api/admin/announcements/{id}` | 管理员 | 200 | [管理员全体公告](#admin-announcements) |
-| POST | `/api/admin/announcements/{id}/withdraw` | 管理员 | 200 | [管理员全体公告](#admin-announcements) |
+| POST | `/api/admin/announcements` | 管理员 | 200 | [发布全体公告](#admin-announcements) |
+| POST | `/api/admin/announcements/targeted` | 管理员 | 200 | [发布指定用户公告](#admin-announcements) |
+| GET | `/api/admin/announcements/recipients` | 管理员 | 200 | [查询候选收件人](#admin-announcements) |
+| GET | `/api/admin/announcements` | 管理员 | 200 | [查询公告记录](#admin-announcements) |
+| GET | `/api/admin/announcements/{id}` | 管理员 | 200 | [查询公告详情](#admin-announcements) |
+| POST | `/api/admin/announcements/{id}/withdraw` | 管理员 | 200 | [撤回公告](#admin-announcements) |
 | GET | `/api/me/announcements/{id}` | Bearer | 200 | [用户公告详情及系统消息合并](#announcements) |
 
 <a id="inbox"></a>
 
 ## 本人系统通知
 
-通知列表、已读及删除接口均需有效Bearer，仅以当前身份作为收件人，返回`Cache-Control: no-store`；管理员不扩大收件箱权限。支持ALL（全部）、SYSTEM（审核结果及全体公告）、COMMENTS（点评回复）、LIKES（获赞）、FOLLOWERS（新增关注），普通用户不接受客户端发信或指定收件人；管理员全体公告入口见[管理员全体公告](#admin-announcements)。
+通知列表、已读及删除接口均需有效Bearer，仅以当前身份作为收件人，返回`Cache-Control: no-store`；管理员同样受收件权限限制。支持ALL（全部）、SYSTEM（审核结果及可见公告）、COMMENTS（点评回复）、LIKES（获赞）、FOLLOWERS（新增关注）。发布权限见[管理员公告](#admin-announcements)。
 
 <a id="list"></a>
 
@@ -93,7 +95,7 @@ COMMENTS的sourceId是回复ID、reviewId是原点评ID、actorUserId是回复�
 
 **响应**
 
-`POST /api/me/notifications/read-all?category=ALL`，无请求体；category默认ALL，可选ALL/SYSTEM/COMMENTS/LIKES/FOLLOWERS。SYSTEM处理审核消息及有效全体公告，COMMENTS只标回复消息，LIKES只标获赞消息，FOLLOWERS只标关注消息，ALL覆盖四类，其他分类400。成功204、无响应体，空收件箱也可调用，不删除消息或改变源业务。
+`POST /api/me/notifications/read-all?category=ALL`，无请求体；category默认ALL，可选ALL/SYSTEM/COMMENTS/LIKES/FOLLOWERS。SYSTEM处理审核消息及本人可见的公告，COMMENTS只标回复消息，LIKES只标获赞消息，FOLLOWERS只标关注消息，ALL覆盖四类，其他分类400。成功204、无响应体。
 
 **错误码**
 
@@ -120,7 +122,7 @@ COMMENTS的sourceId是回复ID、reviewId是原点评ID、actorUserId是回复�
 | 503 | AUTH_SERVICE_UNAVAILABLE | 认证依赖暂不可用。 |
 | 500 | COMMON_INTERNAL_SERVER_ERROR | 未预期查询/写入失败，不能伪装为空数据或成功已读。 |
 
-消息删除见[删除本人单条消息](#delete)；关注通知见[新增关注消息](community.md#follow-notices)。全体公告后端见[管理员全体公告](#admin-announcements)、[用户公告详情及系统消息合并](#announcements)，实时刷新见[实时未读红点](#unread-events)；管理端公告页及用户系统消息已接入。
+消息删除见[删除本人单条消息](#delete)，关注通知见[新增关注消息](community.md#follow-notices)，公告见[管理员公告](#admin-announcements)和[用户公告详情及系统消息合并](#announcements)，实时刷新见[实时未读红点](#unread-events)。
 
 <a id="reply-target"></a>
 
@@ -207,13 +209,15 @@ review沿用[按作者分组分页](reviews.md#review-list)的currentReview结�
 
 <a id="admin-announcements"></a>
 
-### 管理员全体公告
+### 管理员公告
 
 **接口与权限**
 
 | 方法 | 路径 | 权限 | 成功状态 |
 | --- | --- | --- | --- |
 | POST | `/api/admin/announcements` | 管理员 | 200 |
+| POST | `/api/admin/announcements/targeted` | 管理员 | 200 |
+| GET | `/api/admin/announcements/recipients` | 管理员 | 200 |
 | GET | `/api/admin/announcements` | 管理员 | 200 |
 | GET | `/api/admin/announcements/{id}` | 管理员 | 200 |
 | POST | `/api/admin/announcements/{id}/withdraw` | 管理员 | 200 |
@@ -222,7 +226,9 @@ review沿用[按作者分组分页](reviews.md#review-list)的currentReview结�
 
 | 方法 | 路径 | 参数及结果 |
 | --- | --- | --- |
-| POST | `/api/admin/announcements` | JSON包含clientRequestId（UUID）、title、content；发布或同内容重试均200，返回Detail。 |
+| POST | `/api/admin/announcements` | JSON包含clientRequestId（UUID）、title、content。发布给全体用户，返回Detail。 |
+| POST | `/api/admin/announcements/targeted` | 除UUID、标题和正文外，必须提供recipientUserIds数组，1～100个正Long十进制字符串。服务端去重，任一账号不可用则整笔返回400。返回Detail。 |
+| GET | `/api/admin/announcements/recipients` | keyword默认空，最长64个字符，按用户名子串匹配；page默认1、范围1～1000000。仅查询启用且邮箱已验证的账号。每页最多10条，返回records（每项只含id、username）和hasNext。 |
 | GET | `/api/admin/announcements` | status默认ALL，可选ALL/PUBLISHED/WITHDRAWN；page默认1、范围1～1000000；pageSize默认20、范围1～50。200返回records、total、page、pageSize、totalPages。 |
 | GET | `/api/admin/announcements/{id}` | 正Long十进制ID。200返回Detail，允许核对撤回历史。 |
 | POST | `/api/admin/announcements/{id}/withdraw` | 无请求体。首次与重复撤回均200返回Detail，重复时保留首次撤回人及时间。 |
@@ -233,14 +239,14 @@ review沿用[按作者分组分页](reviews.md#review-list)的currentReview结�
 {"clientRequestId":"12345678-1234-4234-8234-123456789abc","title":"校园服务通知","content":"本周服务安排如下。"}
 ```
 
-标题/正文先统一CRLF/CR换行为LF并去除两端空白；按Unicode码点限制标题1～120、正文1～10000，禁止空白内容。发布身份及时间由服务端确定。按发布人+UUID去重，摘要覆盖规范化标题与正文：相同内容返回首次公告且replayed=true，不重复插入或广播；不同内容409。公告已撤回后的相同发布请求仍返回原撤回记录，不重新发布。不同管理员的同一UUID互不冲突。replayed只表示本次发布/撤回是否重放，GET返回false。
+标题/正文先统一CRLF/CR换行为LF并去除两端空白，按Unicode码点限制标题1～120、正文1～10000。发布身份及时间由服务端确定。按发布人+UUID去重，摘要覆盖规范化内容及发送范围，指定发布还包含去重、排序后的收件人ID。相同请求重试返回首次公告且replayed=true，范围、内容或收件人组变化返回409。原公告已撤回时返回撤回记录。replayed只表示本次发布或撤回是否重放，GET返回false。
 
 **响应**
 
 Detail为统一响应的data：
 
 ```json
-{"id":"12","title":"校园服务通知","content":"本周服务安排如下。","status":"PUBLISHED","publishedBy":"22","publishedAt":"2026-11-08T05:00:00Z","withdrawnBy":null,"withdrawnAt":null,"replayed":false}
+{"id":"12","title":"校园服务通知","content":"本周服务安排如下。","status":"PUBLISHED","audience":"ALL","publishedBy":"22","publishedAt":"2026-11-08T05:00:00Z","withdrawnBy":null,"withdrawnAt":null,"replayed":false}
 ```
 
 **错误码**
@@ -249,11 +255,11 @@ Detail为统一响应的data：
 
 **副作用与限制**
 
-以下接口均要求有效Bearer及当前数据库ROLE_ADMIN；返回`Cache-Control: no-store`。不提供定向接收、编辑、草稿、定时发布或到期接口，正文按纯文本保存，客户端不得将其作为HTML执行。
+管理接口均要求有效Bearer及当前数据库ROLE_ADMIN，返回`Cache-Control: no-store`。Detail的audience为ALL或TARGETED，不返回收件人名单。正文按纯文本保存。
 
-管理员列表按publishedAt/id倒序，计数与记录同一快照，越界返回空records及真实总数。撤回与个人已读/删除共用公告主行锁；任意管理员可撤回，首次撤回人/时间不可被重试覆盖。公告及用户状态保留，用户侧不显示撤回占位。发布和撤回事务提交后向本实例所有在线连接发送刷新提示；失败回滚不广播，不创建逐用户通知。
+管理员列表按publishedAt/id倒序，计数与记录同一快照，越界返回空records及真实总数。撤回与个人已读、删除共用公告主行锁，保留首次撤回人和时间。全体公告发布或撤回提交后提示本实例所有在线连接刷新，指定公告只提示收件人的连接。失败回滚不发提示。
 
-前端管理入口为`/admin/announcements`：单列表单填写标题和正文，确认后发布，成功进入公告记录。记录支持状态筛选、分页、详情及撤回确认。未知发布结果保留原UUID和正文再重试，写入成功但记录读取失败只重试GET；退出、换号或卸载清理私有草稿与迟到回执，不保存到浏览器存储。
+前端管理入口为`/admin/announcements`。发布默认全体用户，点「更改」可搜索和勾选收件人。确认后发布，成功进入公告记录。发布结果未知时保留原UUID、正文和发送范围重试，写入成功后列表读取失败只重试GET。
 
 <a id="announcements"></a>
 
@@ -267,7 +273,7 @@ Detail为统一响应的data：
 
 **响应**
 
-`GET /api/me/announcements/{id}`：有效Bearer，id为正Long无前导零十进制。200返回[管理员全体公告](#admin-announcements)的Detail结构，仅允许仍发布且本人未删除的公告；GET不标记已读。撤回、本人删除或不存在统一404。管理员访问此用户接口同样受本人删除状态限制；管理员历史核对使用[管理员全体公告](#admin-announcements)管理接口。
+`GET /api/me/announcements/{id}`：有效Bearer，id为正Long无前导零十进制。200返回[管理员公告](#admin-announcements)的Detail结构。指定公告需匹配当前用户ID；未在收件名单内、已撤回、本人删除或不存在均返回404。GET不标记已读。管理员访问此用户接口适用同一范围。
 
 [查询收件箱与未读数](#list)列表中的公告示例：
 
@@ -285,15 +291,15 @@ Detail为统一响应的data：
 | 400 | COMMON_MALFORMED_REQUEST | JSON或UUID解析失败。 |
 | 401 | AUTH_UNAUTHENTICATED | 缺失或无效凭证。 |
 | 403 | AUTH_FORBIDDEN | 普通用户访问公告管理或管理员角色已撤销。 |
-| 404 | NOTIFICATION_NOT_FOUND | 公告不存在，或用户侧已删除/撤回。 |
-| 409 | COMMON_DATA_CONFLICT | 同一发布人UUID被不同内容复用。 |
+| 404 | NOTIFICATION_NOT_FOUND | 公告不存在、账号不在收件名单，或用户侧已删除/撤回。 |
+| 409 | COMMON_DATA_CONFLICT | 同一发布人UUID被不同内容、范围或收件人复用。 |
 | 405 | COMMON_METHOD_NOT_ALLOWED | 已认证请求使用未提供的编辑等方法。 |
 | 503 | AUTH_SERVICE_UNAVAILABLE | 认证基础设施暂时不可用。 |
 | 500 | COMMON_INTERNAL_SERVER_ERROR | 其他读写失败，事务回滚，不伪装成成功。 |
 
 **副作用与限制**
 
-有效全体公告对所有当前及后来注册用户可见，未生成个人状态时初始未读；系统/全部列表、分类总数、未读数、latestSystem及轻量未读查询统一包含公告。已撤回或本人删除后全部排除。列表只查询标题，不读取公告正文；未读查询只做来源计数。
+有效全体公告对所有当前及后来注册用户可见，指定公告仅对发布时选择的账号可见。系统/全部列表、分类总数、未读数、latestSystem、详情和已读、删除统一检查该范围。未生成个人状态时初始未读。已撤回或本人删除后从收件箱移除。
 
 公告已读和删除复用[单条已读](#read)、[删除本人单条消息](#delete)，将id传为`announcement:12`。首次及重复已读204，保留首次readAt；已删除或已撤回则404。首次及本人重复删除204，可直接删除未读公告而不生成readAt；已删除公告即使后来撤回仍可重试204，未删过的撤回公告404。删除回执长期保留，无恢复接口。其他用户的个人状态不受影响。
 

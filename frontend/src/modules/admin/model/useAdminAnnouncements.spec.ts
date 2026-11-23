@@ -76,12 +76,14 @@ describe('公告管理状态', () => {
     clearAccessToken()
     vi.restoreAllMocks()
   })
-  it('未知发布结果保留同一UUID及正文，重试成功后读取记录', async () => {
+  it('未知发布结果保留同一UUID、正文和收件人，重试成功后读取记录', async () => {
+    state.recipients.value = [{ id: '11', username: '收件人' }]
     vi.mocked(publishAnnouncement)
       .mockRejectedValueOnce(new Error('网络中断'))
       .mockResolvedValueOnce(receipt())
     expect(await state.publish()).toBe(false)
     const pending = { ...state.pending.value! }
+    expect(pending.recipientUserIds).toEqual(['11'])
     expect(state.title.value).toBe('标题')
     expect(await state.publish()).toBe(true)
     expect(vi.mocked(publishAnnouncement).mock.calls[0]![0]).toEqual(pending)
@@ -89,6 +91,7 @@ describe('公告管理状态', () => {
     expect(state.pending.value).toBeNull()
     expect(state.tab.value).toBe('records')
     expect(state.title.value).toBe('')
+    expect(state.recipients.value).toEqual([])
     expect(state.notice.value).toBe('公告已发布。')
   })
   it('发布成功但记录读取失败，仅重试读取，不能再发一条公告', async () => {

@@ -13,10 +13,22 @@ public class UserDirectoryService {
     private final UserDirectoryMapper users;
 
     public List<UserDirectoryEntry> list(String keyword) {
+        return users.list(pattern(keyword));
+    }
+
+    public List<UserDirectoryEntry> searchActive(String keyword, long offset, int limit) {
+        return users.searchActive(pattern(keyword), offset, limit);
+    }
+
+    /** 在发布事务中锁定可登录的收件账号，避免校验和保存之间变更状态。 */
+    public List<Long> lockActiveIds(List<Long> ids) {
+        return users.lockActiveIds(ids);
+    }
+
+    private String pattern(String keyword) {
         String term = keyword.strip();
-        String pattern = term.isEmpty()
+        return term.isEmpty()
                 ? null
                 : "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        return users.list(pattern);
     }
 }

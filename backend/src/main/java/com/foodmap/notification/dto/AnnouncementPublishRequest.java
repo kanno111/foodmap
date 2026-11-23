@@ -2,15 +2,19 @@ package com.foodmap.notification.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import lombok.Data;
 
+import java.util.List;
 import java.util.UUID;
 
-/** 只允许全体公告内容及客户端请求号；发布身份与时间不接受客户端指定。 */
+/** 发布身份与时间由服务端确定，指定发布必须提供收件人。 */
 @Data
 public class AnnouncementPublishRequest {
     @NotNull private UUID clientRequestId;
     @NotBlank private String title;
     @NotBlank private String content;
+    @Size(max = 100)
+    private List<@NotBlank String> recipientUserIds;
 }

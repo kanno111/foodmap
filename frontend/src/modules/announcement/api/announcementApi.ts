@@ -5,6 +5,7 @@ export interface AnnouncementDetail {
   title: string
   content: string
   status: 'PUBLISHED' | 'WITHDRAWN'
+  audience?: 'ALL' | 'TARGETED'
   publishedBy: string
   publishedAt: string
   withdrawnBy: string | null
@@ -23,6 +24,15 @@ export interface AnnouncementInput {
   clientRequestId: string
   title: string
   content: string
+  recipientUserIds?: readonly string[]
+}
+export interface AnnouncementRecipient {
+  id: string
+  username: string
+}
+export interface AnnouncementRecipientPage {
+  records: AnnouncementRecipient[]
+  hasNext: boolean
 }
 export const announcementId = (id: unknown): id is string =>
   typeof id === 'string' && /^[1-9]\d{0,18}$/.test(id) && BigInt(id) <= 9223372036854775807n
@@ -43,7 +53,8 @@ function detail(row: AnnouncementDetail): AnnouncementDetail {
     typeof row.content !== 'string' ||
     !row.content.trim() ||
     Array.from(row.content).length > 10000 ||
-    typeof row.replayed !== 'boolean'
+    typeof row.replayed !== 'boolean' ||
+    (row.audience !== undefined && row.audience !== 'ALL' && row.audience !== 'TARGETED')
   )
     throw invalid()
   if (
@@ -60,6 +71,7 @@ function detail(row: AnnouncementDetail): AnnouncementDetail {
     title: row.title,
     content: row.content,
     status: row.status,
+    ...(row.audience === undefined ? {} : { audience: row.audience }),
     publishedBy: row.publishedBy,
     publishedAt: row.publishedAt,
     withdrawnBy: row.withdrawnBy,
@@ -72,6 +84,29 @@ const options = (token: string, signal: AbortSignal) => ({
   headers: { Authorization: `Bearer ${token}` },
 })
 const admin = '/api/admin/announcements'
+export async function searchAnnouncementRecipients(
+  keyword: string,
+  page: number,
+  token: string,
+  signal: AbortSignal,
+): Promise<AnnouncementRecipientPage> {
+  const { data } = await httpClient.get<ApiResponse<AnnouncementRecipientPage>>(
+    `${admin}/recipients`,
+    { ...options(token, signal), params: { keyword, page } },
+  )
+  const value = data.data
+  if (
+    !data.success ||
+    !value ||
+    !Array.isArray(value.records) ||
+    typeof value.hasNext !== 'boolean' ||
+    value.records.some(
+      (row) => !row || !announcementId(row.id) || typeof row.username !== 'string' || !row.username,
+    )
+  )
+    throw new Error('用户列表无法读取，请重试。')
+  return value
+}
 /** 列表绑定发起时凭证；失败不能伪装为空列表。 */
 export async function fetchAdminAnnouncements(
   status: AnnouncementStatus,
@@ -111,8 +146,10 @@ export async function publishAnnouncement(
   token: string,
   signal: AbortSignal,
 ) {
+  const targeted = input.recipientUserIds !== undefined
+  if (targeted && !input.recipientUserIds?.length) throw invalid()
   const response = await httpClient.post<ApiResponse<AnnouncementDetail>>(
-    admin,
+    targeted ? `${admin}/targeted` : admin,
     input,
     options(token, signal),
   )
@@ -120,7 +157,8 @@ export async function publishAnnouncement(
   const result = detail(response.data.data)
   if (
     result.title !== normalizeAnnouncementText(input.title) ||
-    result.content !== normalizeAnnouncementText(input.content)
+    result.content !== normalizeAnnouncementText(input.content) ||
+    (result.audience ?? 'ALL') !== (targeted ? 'TARGETED' : 'ALL')
   )
     throw invalid()
   return result

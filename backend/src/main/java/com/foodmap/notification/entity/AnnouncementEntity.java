@@ -13,6 +13,7 @@ public class AnnouncementEntity {
     private String title;
     private String content;
     private String status;
+    private String audience;
     private Long publishedBy;
     private Instant publishedAt;
     private Long withdrawnBy;

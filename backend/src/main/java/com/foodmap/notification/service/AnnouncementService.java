@@ -9,6 +9,7 @@ import com.foodmap.notification.exception.NotificationErrorCode;
 import com.foodmap.notification.mapper.AnnouncementMapper;
 import com.foodmap.notification.vo.AnnouncementViews;
 import com.foodmap.security.service.CurrentActorService;
+import com.foodmap.user.service.UserDirectoryService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,20 +22,23 @@ import org.springframework.transaction.annotation.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 
-/** 公告生命周期服务：发布不可编辑，撤回与用户操作共用主行锁，不扇出收件记录。 */
+/** 公告发布、撤回和可见性；仅指定公告保存收件人，正文始终保存一份。 */
 @Service
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 public class AnnouncementService {
+    private static final int RECIPIENT_PAGE_SIZE = 10;
     private final AnnouncementMapper announcements;
     private final CurrentActorService actors;
     private final NotificationChangeService changes;
+    private final UserDirectoryService users;
 
     /** 使用发布人+UUID去重；唯一键竞争结束后核验摘要，失败整笔回滚。 */
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public AnnouncementViews.Detail publish(AnnouncementPublishRequest request) {
+    public AnnouncementViews.Detail publish(AnnouncementPublishRequest request, boolean targeted) {
         long owner = admin();
         if (request == null || request.getClientRequestId() == null) {
             throw invalid();
@@ -47,13 +51,16 @@ public class AnnouncementService {
                         .putLong(uuid.getMostSignificantBits())
                         .putLong(uuid.getLeastSignificantBits())
                         .array();
-        byte[] hash = hash(title, content);
+        List<Long> recipients = recipientIds(request.getRecipientUserIds(), targeted);
+        byte[] hash = hash(title, content, recipients);
         var row = new AnnouncementEntity();
         row.setClientRequestId(key);
         row.setRequestHash(hash);
         row.setTitle(title);
         row.setContent(content);
         row.setPublishedBy(owner);
+        row.setAudience(targeted ? "TARGETED" : "ALL");
+        row.setStatus(targeted ? "TARGETED_PUBLISHED" : "PUBLISHED");
         try {
             announcements.insert(row);
         } catch (DuplicateKeyException duplicate) {
@@ -66,8 +73,31 @@ public class AnnouncementService {
             }
             return view(existing, true);
         }
-        changes.allChanged();
+        if (targeted) {
+            if (users.lockActiveIds(recipients).size() != recipients.size()) {
+                throw new BusinessException(
+                        CommonErrorCode.VALIDATION_FAILED, "有收件人已不可用，请重新选择。");
+            }
+            announcements.insertRecipients(row.getId(), recipients);
+            recipients.forEach(changes::changed);
+        } else {
+            changes.allChanged();
+        }
         return view(announcements.find(row.getId()), false);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional(readOnly = true)
+    public AnnouncementViews.RecipientPage searchRecipients(String keyword, int page) {
+        admin();
+        long offset = ((long) page - 1) * RECIPIENT_PAGE_SIZE;
+        var matches = users.searchActive(keyword, offset, RECIPIENT_PAGE_SIZE + 1);
+        var items = matches.stream()
+                .limit(RECIPIENT_PAGE_SIZE)
+                .map(user -> new AnnouncementViews.Recipient(
+                        Long.toString(user.getId()), user.getUsername()))
+                .toList();
+        return new AnnouncementViews.RecipientPage(items, matches.size() > RECIPIENT_PAGE_SIZE);
     }
 
     /** 管理端可核对撤回记录，用户侧始终通过独立可见性查询。 */
@@ -114,11 +144,15 @@ public class AnnouncementService {
         if (row == null) {
             throw missing();
         }
-        if ("WITHDRAWN".equals(row.getStatus())) {
+        if (!isPublished(row)) {
             return view(row, true);
         }
         announcements.withdraw(key, owner);
-        changes.allChanged();
+        if ("ALL".equals(row.getAudience())) {
+            changes.allChanged();
+        } else {
+            announcements.recipients(key).forEach(changes::changed);
+        }
         return view(announcements.find(key), false);
     }
 
@@ -138,6 +172,7 @@ public class AnnouncementService {
     public void read(String id) {
         long owner = actors.requireActor().getUserId(), key = key(id);
         var row = announcements.lock(key);
+        requireRecipient(row, owner);
         requirePublished(row);
         if (announcements.deleted(owner, key) != null) {
             throw missing();
@@ -151,9 +186,7 @@ public class AnnouncementService {
     public void delete(String id) {
         long owner = actors.requireActor().getUserId(), key = key(id);
         var row = announcements.lock(key);
-        if (row == null) {
-            throw missing();
-        }
+        requireRecipient(row, owner);
         if (announcements.deleted(owner, key) != null) {
             return;
         }
@@ -177,7 +210,7 @@ public class AnnouncementService {
             for (long id : ids) {
                 var row = announcements.lock(id);
                 if (row != null
-                        && "PUBLISHED".equals(row.getStatus())
+                        && isPublished(row)
                         && announcements.deleted(owner, id) == null) {
                     announcements.read(owner, id);
                     changes.changed(owner);
@@ -196,7 +229,18 @@ public class AnnouncementService {
     }
 
     private void requirePublished(AnnouncementEntity row) {
-        if (row == null || !"PUBLISHED".equals(row.getStatus())) {
+        if (!isPublished(row)) {
+            throw missing();
+        }
+    }
+
+    private boolean isPublished(AnnouncementEntity row) {
+        return "PUBLISHED".equals(row.getStatus()) || "TARGETED_PUBLISHED".equals(row.getStatus());
+    }
+
+    private void requireRecipient(AnnouncementEntity row, long owner) {
+        if (row == null
+                || (!"ALL".equals(row.getAudience()) && !announcements.isRecipient(row.getId(), owner))) {
             throw missing();
         }
     }
@@ -229,13 +273,35 @@ public class AnnouncementService {
         return result;
     }
 
-    private byte[] hash(String title, String content) {
+    private List<Long> recipientIds(List<String> ids, boolean targeted) {
+        if (!targeted && ids == null) {
+            return List.of();
+        }
+        if (!targeted || ids == null || ids.isEmpty() || ids.size() > 100) {
+            throw invalid();
+        }
+        return ids.stream().map(this::key).distinct().sorted().toList();
+    }
+
+    private byte[] hash(String title, String content, List<Long> recipients) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
             byte[] first = title.getBytes(StandardCharsets.UTF_8);
+            byte[] body = content.getBytes(StandardCharsets.UTF_8);
+            // 全体公告沿用既有摘要。指定公告使用独立前缀与长度边界，收件人顺序不影响重试。
+            if (!recipients.isEmpty()) {
+                digest.update(ByteBuffer.allocate(4).putInt(-1).array());
+            }
             digest.update(ByteBuffer.allocate(4).putInt(first.length).array());
             digest.update(first);
-            return digest.digest(content.getBytes(StandardCharsets.UTF_8));
+            if (!recipients.isEmpty()) {
+                digest.update(ByteBuffer.allocate(4).putInt(body.length).array());
+            }
+            digest.update(body);
+            for (long id : recipients) {
+                digest.update(ByteBuffer.allocate(8).putLong(id).array());
+            }
+            return digest.digest();
         } catch (java.security.NoSuchAlgorithmException error) {
             throw new IllegalStateException(error);
         }
@@ -246,7 +312,8 @@ public class AnnouncementService {
         result.setId(row.getId().toString());
         result.setTitle(row.getTitle());
         result.setContent(row.getContent());
-        result.setStatus(row.getStatus());
+        result.setStatus(isPublished(row) ? "PUBLISHED" : "WITHDRAWN");
+        result.setAudience(row.getAudience());
         result.setPublishedBy(row.getPublishedBy().toString());
         result.setPublishedAt(row.getPublishedAt());
         result.setWithdrawnBy(
