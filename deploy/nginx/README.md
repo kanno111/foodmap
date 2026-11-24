@@ -140,3 +140,18 @@ sudo python3 /opt/foodmap/nginx-jsonp-update-20261120/update-jsonp.py
 当前修复后通过统一入口完成17项部署检查，7项Linux语义用例在Windows跳过；包括5项假密钥高德规则检查和3项模块前置／错误脱敏检查，不访问高德。此前曾因可提交内存1823MiB不足而在启动前退出，用户腾出内存后继续；本次修复检查的余量为3405MiB，未修改门槛或停止开发服务。Python／JS／YAML静态检查及文档检查通过。用户现已回传服务器配套Nginx／njs安装、完整项目配置检查、reload及503等待页成功；真实地图、地点搜索等请求仍待首次应用发布后验收，Node中的规则检查不能代替真实高德链路验收。
 
 针对模块缺失，初始化脚本现会在读取私有参数或修改站点前输出明确的固定错误，配置值和子进程正文仍不回显。已补充模块缺失无写入、不同发行的模块登记名称及私有错误脱敏检查；完整项目配置已由服务器初始化检查通过。
+
+## 静态 JS/CSS 压缩
+
+仅对 `/assets/` 下的 JS/CSS 开启 gzip（阈值 1024 字节、级别 4），保留静态缓存和缺失文件 404；不改变站点入口、API、照片和 TLS 设置。[隔离对照](../../docs/history/performance/image-read-baseline-2026-11-24.md#隔离-gzip-对照)记录传输量和时序。
+
+应用发布账号 `foodmap-deploy` 无站点管理权限。使用已有管理员会话上传并执行 [更新脚本](enable-static-gzip.py)；不修改 sudo 或 SSH 权限。以下第一条在本机运行，第二条在服务器的管理员终端运行：
+
+```text
+scp deploy/nginx/enable-static-gzip.py ubuntu@43.139.87.34:~/
+sudo python3 ~/enable-static-gzip.py
+```
+
+脚本只替换已核对的站点块，在 `/etc/nginx/.foodmap-before-static-gzip-*` 保留 root 专属备份，校验后再 reload，失败时恢复原文件并重新载入。执行成功后通过原 HTTPS 域名验证 JS/CSS 的 `Content-Encoding: gzip`、`Vary: Accept-Encoding` 与保留的静态缓存策略，同时确认首页及图片接口正常。不重新初始化 Nginx，也不重启后端。
+
+2026-11-24 管理员执行更新后，原域名的 HTTPS 压缩、静态缓存、首页、公开分类和 JPEG 响应已只读验收，见[验收记录](../../docs/history/performance/image-read-baseline-2026-11-24.md#线上-gzip-验收)。

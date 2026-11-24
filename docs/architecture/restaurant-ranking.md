@@ -38,4 +38,4 @@
 
 ## 验证依据
 
-分阶段测量见[MySQL基线](../history/restaurant-ranking-read-2026-11-11.md)、[Redis报告](../history/restaurant-ranking-redis-2026-11-11.md)及[两级缓存报告](../history/restaurant-ranking-caffeine-2026-11-11.md)。
+分阶段测量见[MySQL基线](../history/ranking/restaurant-ranking-read-2026-11-11.md)、[Redis报告](../history/ranking/restaurant-ranking-redis-2026-11-11.md)及[两级缓存报告](../history/ranking/restaurant-ranking-caffeine-2026-11-11.md)。

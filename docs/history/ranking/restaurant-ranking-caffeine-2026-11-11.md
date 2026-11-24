@@ -1,6 +1,6 @@
 # 近期餐厅榜单：Caffeine两级缓存验证（2026-11-11）
 
-本报告记录第三阶段完成时的实现与本机实测。前两阶段的[MySQL基线](restaurant-ranking-read-2026-11-11.md)、[Redis报告](restaurant-ranking-redis-2026-11-11.md)保留各自时间边界；这里的三模式比较全部来自本轮同一进程，不拿不同运行的绝对值相除。当前规则与后续工作见[榜单计划](../plans/hot-restaurants.md)，接口见[近期餐厅榜单读取](../api/discovery.md#rankings)。
+本报告记录第三阶段完成时的实现与本机实测。前两阶段的[MySQL基线](restaurant-ranking-read-2026-11-11.md)、[Redis报告](restaurant-ranking-redis-2026-11-11.md)保留各自时间边界；这里的三模式比较全部来自本轮同一进程，不拿不同运行的绝对值相除。当前规则与后续工作见[榜单计划](../../plans/hot-restaurants.md)，接口见[近期餐厅榜单读取](../../api/discovery.md#rankings)。
 
 ## 实现与一致性
 
@@ -65,7 +65,7 @@
 - 私有Redis临时拒绝DEL，验证真实MySQL已提交、Redis仍旧，但两级读取返回新快照，权限恢复后失效修复。暂停ALL 2秒时，关闭/开启Caffeine且本机未命中的回源分别耗时218/215ms，均小于1.5秒；恢复后重新加载。ACL在finally恢复，仅对私有临时实例执行。
 - 真实HTTP检查本机命中响应与基线一致、保留no-store及公开字段边界；下层JSON损坏不影响有效本机命中。本机未命中后仍由原路径处理Redis坏值。
 
-最终完整`mvn verify`共849项，实际执行368项、默认跳过481项，失败/错误为0，构建通过；与显式专项分别统计，不把重复执行累加。阶段变化见[开发记录](../development.md)。证据位于仓库外`D:\eat\.codex-benchmarks\ranking-caffeine\20261111\comparison\`：`mysql-redis-caffeine.json`含全部原始延迟、逐轮数据、环境、调用数及查询计划；`summary.json`为合并统计；`maven.log`为87项专项与故障耗时；`verify.log`为完整构建；`run.json`为运行时间、源码指纹及未提交状态。上一层`functional/`和`unit.log`仅为阶段复跑，私有Redis启动及清理证据单独留存。
+最终完整`mvn verify`共849项，实际执行368项、默认跳过481项，失败/错误为0，构建通过；与显式专项分别统计，不把重复执行累加。阶段变化见[开发记录](../../development.md)。证据位于仓库外`D:\eat\.codex-benchmarks\ranking-caffeine\20261111\comparison\`：`mysql-redis-caffeine.json`含全部原始延迟、逐轮数据、环境、调用数及查询计划；`summary.json`为合并统计；`maven.log`为87项专项与故障耗时；`verify.log`为完整构建；`run.json`为运行时间、源码指纹及未提交状态。上一层`functional/`和`unit.log`仅为阶段复跑，私有Redis启动及清理证据单独留存。
 
 复现入口（先启动可销毁的私有回环Redis；数据库账号须能创建隔离库，凭据仅经环境或忽略的本地配置读取，不打印）：
 
@@ -80,13 +80,13 @@ python -X utf8 backend/tools/benchmark_restaurant_rankings.py --local-config --r
 
 | 文件 | 用途 |
 | --- | --- |
-| [pom.xml](../../backend/pom.xml) | 引入Boot管理版本的Caffeine |
-| [RestaurantRankingLocalCache.java](../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingLocalCache.java) | 四条容量、写后过期、不可变展示对象、防御性返回及逐次年龄检查 |
-| [RestaurantRankingCache.java](../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingCache.java) | 本机快路径、锁内复查与回填、两级失效及Redis故障后的最新快照缓存 |
-| [RestaurantRankingSnapshotCodec.java](../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingSnapshotCodec.java) | 携带原PREPARING到期时间，避免跨层短缓存续期 |
-| [RestaurantRankingProperties.java](../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingProperties.java) | 本机开关、30分钟TTL及有效配置校验 |
-| [application.yml](../../backend/src/main/resources/application.yml) / [application-test.yml](../../backend/src/test/resources/application-test.yml) | 默认启用两级缓存，普通测试保持关闭以维持原基线 |
-| [缓存测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingCacheTest.java) / [读取测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadServiceTest.java) | 新增本机、并发、TTL与不可变性验证，适配原读取校验 |
-| [真实集成测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java) | 两种缓存配置复测事务/故障，增加真实HTTP及三模式对照 |
-| [基准入口](../../backend/tools/benchmark_restaurant_rankings.py) | 增加--caffeine、三模式元数据与完整样本归档 |
-| [计划](../plans/hot-restaurants.md)、[近期餐厅榜单读取](../api/discovery.md#rankings)、[功能说明](../features.md)、[开发记录](../development.md)、[导航](../README.md)及本报告 | 同步当前状态、契约、验证结论与证据入口 |
+| [pom.xml](../../../backend/pom.xml) | 引入Boot管理版本的Caffeine |
+| [RestaurantRankingLocalCache.java](../../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingLocalCache.java) | 四条容量、写后过期、不可变展示对象、防御性返回及逐次年龄检查 |
+| [RestaurantRankingCache.java](../../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingCache.java) | 本机快路径、锁内复查与回填、两级失效及Redis故障后的最新快照缓存 |
+| [RestaurantRankingSnapshotCodec.java](../../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingSnapshotCodec.java) | 携带原PREPARING到期时间，避免跨层短缓存续期 |
+| [RestaurantRankingProperties.java](../../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingProperties.java) | 本机开关、30分钟TTL及有效配置校验 |
+| [application.yml](../../../backend/src/main/resources/application.yml) / [application-test.yml](../../../backend/src/test/resources/application-test.yml) | 默认启用两级缓存，普通测试保持关闭以维持原基线 |
+| [缓存测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingCacheTest.java) / [读取测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadServiceTest.java) | 新增本机、并发、TTL与不可变性验证，适配原读取校验 |
+| [真实集成测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java) | 两种缓存配置复测事务/故障，增加真实HTTP及三模式对照 |
+| [基准入口](../../../backend/tools/benchmark_restaurant_rankings.py) | 增加--caffeine、三模式元数据与完整样本归档 |
+| [计划](../../plans/hot-restaurants.md)、[近期餐厅榜单读取](../../api/discovery.md#rankings)、[功能说明](../../features.md)、[开发记录](../../development.md)、[导航](../../README.md)及本报告 | 同步当前状态、契约、验证结论与证据入口 |

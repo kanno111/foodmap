@@ -6,7 +6,7 @@
 
 ## 指标与口径
 
-客户端连接等待为2秒，单次HTTP响应等待为3秒，socket与Rest5请求级响应超时同时设置。该限制不等于整个接口的总时限，SQL兜底和多阶段调用另需时间。真实无响应故障与修复复测见[演练报告](../history/elasticsearch-metrics-fault-drill-2026-11-10.md)。
+客户端连接等待为2秒，单次HTTP响应等待为3秒，socket与Rest5请求级响应超时同时设置。该限制不等于整个接口的总时限，SQL兜底和多阶段调用另需时间。真实无响应故障与修复复测见[演练报告](../history/search/elasticsearch-metrics-fault-drill-2026-11-10.md)。
 
 | Micrometer名称 | 类型 | 标签与含义 |
 | --- | --- | --- |

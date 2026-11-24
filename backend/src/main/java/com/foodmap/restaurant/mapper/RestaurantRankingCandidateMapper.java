@@ -10,13 +10,14 @@ import java.util.List;
 /** 仅查询restaurant所属表，先完整加载候选，不在校区筛选与计分之前截取Top20。 */
 @Mapper
 public interface RestaurantRankingCandidateMapper {
-    /** 封面沿用正式相册position=0及已通过且同店的来源校验，不请求文件服务或OSS。 */
+    /** 封面沿用正式相册position=0；接受管理员直接上传或同店已通过的投稿，不请求文件服务或OSS。 */
     @Select("""
         SELECT r.id, r.name, r.latitude, r.longitude, p.id AS cover_photo_id
         FROM restaurants r
         LEFT JOIN restaurant_photos p ON p.restaurant_id=r.id AND p.position=0
-          AND EXISTS (SELECT 1 FROM restaurant_change_requests q WHERE q.id=p.source_request_id
-                      AND q.status='APPROVED' AND q.restaurant_id=r.id)
+          AND ((p.source_request_id IS NULL AND p.uploaded_by IS NOT NULL)
+            OR EXISTS (SELECT 1 FROM restaurant_change_requests q WHERE q.id=p.source_request_id
+                       AND q.status='APPROVED' AND q.restaurant_id=r.id))
         WHERE r.deleted_at IS NULL AND r.restaurant_type='REGULAR' AND r.business_status='OPERATING'
           AND r.needs_location=0
           AND r.latitude BETWEEN -90 AND 90 AND r.longitude BETWEEN -180 AND 180

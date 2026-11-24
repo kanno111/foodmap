@@ -4,7 +4,7 @@
 
 ## 读取实现与验证范围
 
-接口契约见[近期餐厅榜单读取](../api/discovery.md#rankings)。每次按校区、周期联合主键读取一行，解析JSON并组装公开字段；不逐店查询，不通过MyBatis二级缓存、Spring Cache、Redis或Caffeine复用结果。真实MySQL的EXPLAIN为`type=const`、`key=PRIMARY`、估计`rows=1`；估计行数不等同于实际IO次数。
+接口契约见[近期餐厅榜单读取](../../api/discovery.md#rankings)。每次按校区、周期联合主键读取一行，解析JSON并组装公开字段；不逐店查询，不通过MyBatis二级缓存、Spring Cache、Redis或Caffeine复用结果。真实MySQL的EXPLAIN为`type=const`、`key=PRIMARY`、估计`rows=1`；估计行数不等同于实际IO次数。
 
 读取区分尚未生成、成功空榜及结果过期；检查24小时数据年龄、时间区间、JSON格式和五分制，异常返回安全的503。SQL计数探针仅在测试上下文统计实际Statement prepare，正式链路无该探针。功能测试覆盖四榜隔离、大ID及微秒时间、公开GET/受保护写入路径、参数错误不查库、损坏快照、重复读取及提交后变更可见。
 
@@ -68,14 +68,14 @@ python backend/tools/benchmark_restaurant_rankings.py --local-config --output D:
 - 正式基线：`20261111-mysql-warmed/mysql-only.json`，包含每次延迟、每轮SQL计数、预热量、环境、查询计划及摘要；`run.json`记录Git版本和未提交改动状态；`maven.log`记录专项执行。完成后另保存`source-hashes.json`核对本步后端源码（含尚未提交的文件），以及`verify.log`完整构建日志。
 - 预热试跑：`20261111-mysql/`，保留但不纳入正式统计。
 
-完整构建日志为`backend/target/ranking-read-verify.log`，另随正式基线证据归档；迁移及旧数据备份仍按[开发记录](../development.md)单独保存。
+完整构建日志为`backend/target/ranking-read-verify.log`，另随正式基线证据归档；迁移及旧数据备份仍按[开发记录](../../development.md)单独保存。
 
 ## 修改文件与职责
 
-- HTTP与协议：[Controller](../../backend/src/main/java/com/foodmap/restaurant/controller/RestaurantRankingController.java)、[查询DTO](../../backend/src/main/java/com/foodmap/restaurant/dto/RestaurantRankingQuery.java)、[公开VO](../../backend/src/main/java/com/foodmap/restaurant/vo/RestaurantRankingVo.java)，接入参数校验和公开字段；[安全配置](../../backend/src/main/java/com/foodmap/security/config/SecurityConfiguration.java)仅放行明确GET；[错误码](../../backend/src/main/java/com/foodmap/restaurant/exception/RestaurantErrorCode.java)新增503。
-- MySQL读取：[Service](../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingReadService.java)、[Mapper](../../backend/src/main/java/com/foodmap/restaurant/mapper/RestaurantRankingSnapshotMapper.java)、[XML](../../backend/src/main/resources/mapper/restaurant/RestaurantRankingSnapshotMapper.xml)、[Entity](../../backend/src/main/java/com/foodmap/restaurant/entity/RestaurantRankingSnapshotEntity.java)，单条查询读取完整快照；[JSON解析](../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingSnapshotCodec.java)限制格式及公开输出。
-- 参数与时间：[Properties](../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingProperties.java)、[Configuration](../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingConfiguration.java)、[application.yml](../../backend/src/main/resources/application.yml)，配置24小时数据年龄及可测试时钟。
-- 验证：[单元测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadServiceTest.java)、[真实MySQL/HTTP测试与基准](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java)、[脚本](../../backend/tools/benchmark_restaurant_rankings.py)，记录功能、耗时和SQL次数。
-- 文档：[近期餐厅榜单读取](../api/discovery.md#rankings)、[计划](../plans/hot-restaurants.md)、[功能](../features.md)、[导航](../README.md)、[开发记录](../development.md)及本文同步已实现边界。本步无新增迁移；工作区原有V43及结构文档改动保留。
+- HTTP与协议：[Controller](../../../backend/src/main/java/com/foodmap/restaurant/controller/RestaurantRankingController.java)、[查询DTO](../../../backend/src/main/java/com/foodmap/restaurant/dto/RestaurantRankingQuery.java)、[公开VO](../../../backend/src/main/java/com/foodmap/restaurant/vo/RestaurantRankingVo.java)，接入参数校验和公开字段；[安全配置](../../../backend/src/main/java/com/foodmap/security/config/SecurityConfiguration.java)仅放行明确GET；[错误码](../../../backend/src/main/java/com/foodmap/restaurant/exception/RestaurantErrorCode.java)新增503。
+- MySQL读取：[Service](../../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingReadService.java)、[Mapper](../../../backend/src/main/java/com/foodmap/restaurant/mapper/RestaurantRankingSnapshotMapper.java)、[XML](../../../backend/src/main/resources/mapper/restaurant/RestaurantRankingSnapshotMapper.xml)、[Entity](../../../backend/src/main/java/com/foodmap/restaurant/entity/RestaurantRankingSnapshotEntity.java)，单条查询读取完整快照；[JSON解析](../../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingSnapshotCodec.java)限制格式及公开输出。
+- 参数与时间：[Properties](../../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingProperties.java)、[Configuration](../../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingConfiguration.java)、[application.yml](../../../backend/src/main/resources/application.yml)，配置24小时数据年龄及可测试时钟。
+- 验证：[单元测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadServiceTest.java)、[真实MySQL/HTTP测试与基准](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java)、[脚本](../../../backend/tools/benchmark_restaurant_rankings.py)，记录功能、耗时和SQL次数。
+- 文档：[近期餐厅榜单读取](../../api/discovery.md#rankings)、[计划](../../plans/hot-restaurants.md)、[功能](../../features.md)、[导航](../../README.md)、[开发记录](../../development.md)及本文同步已实现边界。本步无新增迁移；工作区原有V43及结构文档改动保留。
 
-源码入口：[读取服务](../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingReadService.java)、[实际SQL](../../backend/src/main/resources/mapper/restaurant/RestaurantRankingSnapshotMapper.xml)、[隔离库功能及基准测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java)、[复跑脚本](../../backend/tools/benchmark_restaurant_rankings.py)。功能与缓存后续状态见[计划](../plans/hot-restaurants.md)。
+源码入口：[读取服务](../../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingReadService.java)、[实际SQL](../../../backend/src/main/resources/mapper/restaurant/RestaurantRankingSnapshotMapper.xml)、[隔离库功能及基准测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java)、[复跑脚本](../../../backend/tools/benchmark_restaurant_rankings.py)。功能与缓存后续状态见[计划](../../plans/hot-restaurants.md)。

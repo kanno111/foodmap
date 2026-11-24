@@ -77,8 +77,8 @@ Counter是当前进程累计量，后端重启归零；看板使用rate计算速
 
 ## 验证入口
 
-单元测试覆盖成功确认、投影/ES失败、确认失败、重试、异常影响行数、批次扫描失败与恢复、未知/陈旧快照、采集不查库及指标故障隔离；真实MySQL/ES测试使用UUID隔离库和索引，覆盖存量/年龄SQL及现有同步、版本、墓碑与重放行为。验证结论与证据见[同步指标验证报告](../history/elasticsearch-sync-metrics-2026-11-10.md)。
+单元测试覆盖成功确认、投影/ES失败、确认失败、重试、异常影响行数、批次扫描失败与恢复、未知/陈旧快照、采集不查库及指标故障隔离；真实MySQL/ES测试使用UUID隔离库和索引，覆盖存量/年龄SQL及现有同步、版本、墓碑与重放行为。验证结论与证据见[同步指标验证报告](../history/search/elasticsearch-sync-metrics-2026-11-10.md)。
 
-提交后唤醒及合并行为的后续验证见[唤醒与合并报告](../history/elasticsearch-sync-wakeup-2026-11-10.md)。
+提交后唤醒及合并行为的后续验证见[唤醒与合并报告](../history/search/elasticsearch-sync-wakeup-2026-11-10.md)。
 
-固定窗口与Bulk后续验证见[Bulk验证报告](../history/elasticsearch-bulk-2026-11-10.md)。
+固定窗口与Bulk后续验证见[Bulk验证报告](../history/search/elasticsearch-bulk-2026-11-10.md)。

@@ -4,7 +4,7 @@
 
 Outbox同步已接入Micrometer/Prometheus及现有Grafana看板，新增积压、到期/重试任务、最老等待、快照新鲜度、批次心跳、消费结果/耗时、重试、409和落库/快照异常。顶部告警区域扩展到八条规则，包含同步积压、失败任务及快照/心跳陈旧三条。
 
-保持单实例消费、ES外部版本及正文校验、逐任务确认、失败次数和退避策略；未增加数据库字段、自动重放工具、消息推送或全量对账。指标定义以[同步指标说明](../operations/elasticsearch-sync-metrics.md)为准，告警阈值以[运行说明](../operations/search-alerts.md)为准。
+保持单实例消费、ES外部版本及正文校验、逐任务确认、失败次数和退避策略；未增加数据库字段、自动重放工具、消息推送或全量对账。指标定义以[同步指标说明](../../operations/elasticsearch-sync-metrics.md)为准，告警阈值以[运行说明](../../operations/search-alerts.md)为准。
 
 ## 验证
 

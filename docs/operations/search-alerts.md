@@ -71,7 +71,7 @@ docker compose -p foodmap-monitoring -f deploy/monitoring/compose.yaml up -d --n
 
 ## 验证边界
 
-规则测试覆盖正常/低流量/零流量、持续与短暂异常、触发及恢复、SQL成功不算最终失败、地图和主动SQL排除、实例隔离、采集失败抑制及计数器重置；另覆盖同步积压、失败及恢复、陈旧快照抑制、消费心跳陈旧和观测恢复。首次查询告警真实演练只停止本机指定ES并执行只读查询，使用finally恢复；不人为破坏数据库制造最终失败，结果见[告警演练报告](../history/elasticsearch-alert-drill-2026-11-10.md)。同步告警触发采用离线规则测试，真实同步行为在UUID隔离库/索引测试，见[同步观测报告](../history/elasticsearch-sync-metrics-2026-11-10.md)。
+规则测试覆盖正常/低流量/零流量、持续与短暂异常、触发及恢复、SQL成功不算最终失败、地图和主动SQL排除、实例隔离、采集失败抑制及计数器重置；另覆盖同步积压、失败及恢复、陈旧快照抑制、消费心跳陈旧和观测恢复。首次查询告警真实演练只停止本机指定ES并执行只读查询，使用finally恢复；不人为破坏数据库制造最终失败，结果见[告警演练报告](../history/search/elasticsearch-alert-drill-2026-11-10.md)。同步告警触发采用离线规则测试，真实同步行为在UUID隔离库/索引测试，见[同步观测报告](../history/search/elasticsearch-sync-metrics-2026-11-10.md)。
 
 ## 同步积压与失败
 

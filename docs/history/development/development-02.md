@@ -265,15 +265,15 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [router/index.ts](../../frontend/src/app/router/index.ts)、[RestaurantEditorPage.vue](../../frontend/src/pages/restaurant/RestaurantEditorPage.vue)、[restaurant/index.ts](../../frontend/src/modules/restaurant/index.ts) | 新增/编辑路由、按餐厅重建表单及模块公开入口 |
-| [restaurantApi.ts](../../frontend/src/modules/restaurant/api/restaurantApi.ts)、[restaurantApi.spec.ts](../../frontend/src/modules/restaurant/api/restaurantApi.spec.ts) | 管理快照及CRUD协议、固定凭证、完整PUT/无体DELETE验证 |
-| [restaurantForm.ts](../../frontend/src/modules/restaurant/model/restaurantForm.ts)、[restaurantForm.spec.ts](../../frontend/src/modules/restaurant/model/restaurantForm.spec.ts) | 草稿、Unicode/金额/坐标/标签校验及完整请求转换 |
-| [RestaurantEditor.vue](../../frontend/src/modules/restaurant/ui/RestaurantEditor.vue)、[RestaurantEditor.spec.ts](../../frontend/src/modules/restaurant/ui/RestaurantEditor.spec.ts) | 新增/编辑表单、字段错误、账号变化及离开草稿保护 |
-| [RestaurantManagementActions.vue](../../frontend/src/modules/restaurant/ui/RestaurantManagementActions.vue)、[RestaurantManagementActions.spec.ts](../../frontend/src/modules/restaurant/ui/RestaurantManagementActions.spec.ts) | 服务端权限确认、维护入口和软删除模态框 |
-| [RestaurantCatalog.vue](../../frontend/src/modules/restaurant/ui/RestaurantCatalog.vue)、[RestaurantDetail.vue](../../frontend/src/modules/restaurant/ui/RestaurantDetail.vue)、[catalog.store.ts](../../frontend/src/modules/restaurant/model/catalog.store.ts) | 目录新增/详情维护入口及成功写入后的缓存失效 |
-| [LoginForm.vue](../../frontend/src/modules/auth/ui/LoginForm.vue)、[LoginForm.spec.ts](../../frontend/src/modules/auth/ui/LoginForm.spec.ts) | 安全回跳原餐厅页面及外部跳转拒绝验证 |
-| [RegistrationApiIntegrationTest.java](../../backend/src/test/java/com/foodmap/user/controller/RegistrationApiIntegrationTest.java) | 认证测试连接独立回环实例，支持完整测试组合 |
-| [README](../../README.md)、需求（原文档已移除）、[功能](../features.md)、[接口](../api.md)、[表结构/测试说明](../architecture/mysql-schema.md#restaurant-schema)、本日志 | 同步实际范围、使用方式、协议边界与验证结果 |
+| [router/index.ts](../../../frontend/src/app/router/index.ts)、[RestaurantEditorPage.vue](../../../frontend/src/pages/restaurant/RestaurantEditorPage.vue)、[restaurant/index.ts](../../../frontend/src/modules/restaurant/index.ts) | 新增/编辑路由、按餐厅重建表单及模块公开入口 |
+| [restaurantApi.ts](../../../frontend/src/modules/restaurant/api/restaurantApi.ts)、[restaurantApi.spec.ts](../../../frontend/src/modules/restaurant/api/restaurantApi.spec.ts) | 管理快照及CRUD协议、固定凭证、完整PUT/无体DELETE验证 |
+| [restaurantForm.ts](../../../frontend/src/modules/restaurant/model/restaurantForm.ts)、[restaurantForm.spec.ts](../../../frontend/src/modules/restaurant/model/restaurantForm.spec.ts) | 草稿、Unicode/金额/坐标/标签校验及完整请求转换 |
+| [RestaurantEditor.vue](../../../frontend/src/modules/restaurant/ui/RestaurantEditor.vue)、[RestaurantEditor.spec.ts](../../../frontend/src/modules/restaurant/ui/RestaurantEditor.spec.ts) | 新增/编辑表单、字段错误、账号变化及离开草稿保护 |
+| [RestaurantManagementActions.vue](../../../frontend/src/modules/restaurant/ui/RestaurantManagementActions.vue)、[RestaurantManagementActions.spec.ts](../../../frontend/src/modules/restaurant/ui/RestaurantManagementActions.spec.ts) | 服务端权限确认、维护入口和软删除模态框 |
+| [RestaurantCatalog.vue](../../../frontend/src/modules/restaurant/ui/RestaurantCatalog.vue)、[RestaurantDetail.vue](../../../frontend/src/modules/restaurant/ui/RestaurantDetail.vue)、[catalog.store.ts](../../../frontend/src/modules/restaurant/model/catalog.store.ts) | 目录新增/详情维护入口及成功写入后的缓存失效 |
+| [LoginForm.vue](../../../frontend/src/modules/auth/ui/LoginForm.vue)、[LoginForm.spec.ts](../../../frontend/src/modules/auth/ui/LoginForm.spec.ts) | 安全回跳原餐厅页面及外部跳转拒绝验证 |
+| [RegistrationApiIntegrationTest.java](../../../backend/src/test/java/com/foodmap/user/controller/RegistrationApiIntegrationTest.java) | 认证测试连接独立回环实例，支持完整测试组合 |
+| [README](../../../README.md)、需求（原文档已移除）、[功能](../../features.md)、[接口](../../api.md)、[表结构/测试说明](../../architecture/mysql-schema.md#restaurant-schema)、本日志 | 同步实际范围、使用方式、协议边界与验证结果 |
 
 ## 2026-10-28：餐厅阶段提交整理
 
@@ -304,7 +304,7 @@
 
 ## 2026-10-28：评价数据库结构先行评审
 
-- 用户要求先设计数据库并审核想法，本轮仅新增[评价表结构草案](../architecture/mysql-schema.md#review-schema)，尚未批准、编写或执行迁移，没有连接数据库、实现接口或修改业务代码。
+- 用户要求先设计数据库并审核想法，本轮仅新增[评价表结构草案](../../architecture/mysql-schema.md#review-schema)，尚未批准、编写或执行迁移，没有连接数据库、实现接口或修改业务代码。
 - 建议新增reviews、review_photos、review_replies、media_files和restaurant_review_statistics共5张表；餐厅增加created_nickname展示快照，保留created_by真实归属及餐厅无版本号规则。原站同店多评、停业可评、最多2图、单层回复和昵称贡献均纳入设计，不新增评价编辑或发布审核状态。
 - 草案明确四维DECIMAL半分约束、生成正式总分、账号级同次UUID幂等、评分计数/累计值同事务重建、父子可见性、文件绑定/过期清理竞争和软删除保留图片。24小时临时文件期限及5表方案均为待审核建议；不因本轮设计自动执行物理清理或批准历史真实数据导入。
 - 修改文档及用途：architecture/review-schema.md保存完整待审字段/约束/事务方案；architecture/restaurant-schema.md澄清统计读模型归restaurant、原始评价归review；plans/reviews-development.md标明R1结构待审；README.md增加入口；requirements.md与features.md同步设计状态；development2.md记录本轮边界与验证。保留此前全部未提交规划，不改实际API文档。
@@ -414,4 +414,4 @@
 - 保留后续图片、回复与删除范围。明确删评前要解决硬删除丢失幂等键导致旧请求复活的问题；暂不承诺永久幂等、不新增产品限评配额。技术取舍、重建核验、并发/故障场景及性能测量条件写入计划，未编造压测结果。
 - 检查新增计划JSON示例、相对文件链接与git diff --check；仅文档变化不重复运行前后端测试。docs/api.md继续只记录已实现接口，拟定协议在新计划中明确标注待实现。审核后的首步建议为V5及隔离数据库测试。
 
-后续开发记录接续[development3.md](../development.md)。
+后续开发记录接续[development3.md](../../development.md)。

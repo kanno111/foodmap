@@ -21,7 +21,7 @@ docs/
 
 - 腾讯云自动发布：[CI/CD流程与示意图](../.github/workflows/README.md)、[运行与验收边界](operations/deployment.md)、[GitHub通过SSH配置](operations/ssh-deployment.md)；服务器无需安装自托管Runner，首次基础发布已验证，真实业务链路继续验收。
 
-ES 监控的实际故障验证见[故障演练报告](history/elasticsearch-metrics-fault-drill-2026-11-10.md)：保留首次超时失败依据，已修复并验证暂停无响应时的及时降级、熔断与恢复。
+ES 监控的实际故障验证见[故障演练报告](history/search/elasticsearch-metrics-fault-drill-2026-11-10.md)：保留首次超时失败依据，已修复并验证暂停无响应时的及时降级、熔断与恢复。
 
 | 想了解什么 | 阅读入口 |
 | --- | --- |
@@ -38,7 +38,7 @@ ES 监控的实际故障验证见[故障演练报告](history/elasticsearch-metr
 - 用户活跃度：[管理端统计计划](plans/admin-activity-statistics.md)集中维护业务口径、上线步骤及验收范围；[MySQL日汇总结构](architecture/mysql-schema.md#activity-statistics)、[Redis集合及存储协作](architecture/activity-statistics.md)和[接口契约](api/statistics.md)已实现；本地已备份升级V49并启用实际采集，前端读取正式接口。项目默认关闭，服务器尚未发布本功能。
 - 新店附带点评：[业务规则与实施计划](plans/restaurant-review-submission.md)，使用方式见[功能说明](features.md#补充店铺与纠错)，联合提交、本人操作及[店铺已收录](api/submissions.md#link-existing)协议见[投稿接口](api/submissions.md)。
 - 帮我选一家：[业务规则与实施计划](plans/restaurant-picker.md)。独立六项条件（含最低评分）、等概率抽取、本轮不重复、回看及详情返回已接通；[查询接口](api/discovery.md#picker)不写入抽取记录、不调整表结构。
-- 餐厅榜单：[近期榜单计划](plans/hot-restaurants.md)记录规则及分阶段实施；[快照表](architecture/mysql-schema.md#restaurant-ranking-snapshots)、[读取接口与两级缓存](api/discovery.md#rankings)、内部计算已完成；实测见[MySQL基线](history/restaurant-ranking-read-2026-11-11.md)、[Redis对照](history/restaurant-ranking-redis-2026-11-11.md)、[Caffeine三模式对照及故障验证](history/restaurant-ranking-caffeine-2026-11-11.md)。自动发布、小时调度及防重叠已完成；首页入口及独立榜单页已按确认示意图接入，本地真实接口的空榜及模拟点评生成的20项榜单联调通过，上线验收待进行。
+- 餐厅榜单：[近期榜单计划](plans/hot-restaurants.md)记录规则及分阶段实施；[快照表](architecture/mysql-schema.md#restaurant-ranking-snapshots)、[读取接口与两级缓存](api/discovery.md#rankings)、内部计算已完成；实测见[MySQL基线](history/ranking/restaurant-ranking-read-2026-11-11.md)、[Redis对照](history/ranking/restaurant-ranking-redis-2026-11-11.md)、[Caffeine三模式对照及故障验证](history/ranking/restaurant-ranking-caffeine-2026-11-11.md)。自动发布、小时调度及防重叠已完成；首页入口及独立榜单页已按确认示意图接入，本地真实接口的空榜及模拟点评生成的20项榜单联调通过，上线验收待进行。
 - 食堂直接点评：[窗口体系移除计划](plans/remove-canteen-windows.md)，移除窗口及关联数据，食堂沿用餐厅点评与评分协议。
 
 - 业务访谈：[社区业务规则讨论记录](plans/community-rules.md)，逐项确认“我的”、消息、互动、风控及相关未完成业务，区分待讨论、暂定、已确认与暂缓，不代表已经实现。
@@ -62,7 +62,7 @@ ES 监控的实际故障验证见[故障演练报告](history/elasticsearch-metr
 - 统一登录：`/login`按服务端角色分流前台/工作台，`/admin/login`仅兼容跳转；管理身份由后端`/api/admin/me`校验。身份与查询边界见[前端架构](architecture/frontend.md)。
 - 搜索：[实施进度与待办](plans/elasticsearch-search.md)、[索引结构](architecture/elasticsearch-schema.md)、[同步任务表](architecture/mysql-schema.md#restaurant-search-outbox)；现行查询契约见[搜索契约](api/restaurants.md#search)。
 - 词库：[IK配置与维护](../deploy/elasticsearch/README.md)，包含持久化、词表加载与重建边界。
-- ES监控：[建设计划](plans/elasticsearch-metrics.md)、[检索指标](operations/elasticsearch-metrics.md)、[Outbox同步指标](operations/elasticsearch-sync-metrics.md)，已接通受保护端点、Prometheus采集及Grafana检索/同步看板；[八条本地告警与排查](operations/search-alerts.md)、[首次告警演练](history/elasticsearch-alert-drill-2026-11-10.md)、[同步指标验证](history/elasticsearch-sync-metrics-2026-11-10.md)、[提交后唤醒与合并验证](history/elasticsearch-sync-wakeup-2026-11-10.md)及[固定窗口与Bulk验证](history/elasticsearch-bulk-2026-11-10.md)。
+- ES监控：[建设计划](plans/elasticsearch-metrics.md)、[检索指标](operations/elasticsearch-metrics.md)、[Outbox同步指标](operations/elasticsearch-sync-metrics.md)，已接通受保护端点、Prometheus采集及Grafana检索/同步看板；[八条本地告警与排查](operations/search-alerts.md)、[首次告警演练](history/search/elasticsearch-alert-drill-2026-11-10.md)、[同步指标验证](history/search/elasticsearch-sync-metrics-2026-11-10.md)、[提交后唤醒与合并验证](history/search/elasticsearch-sync-wakeup-2026-11-10.md)及[固定窗口与Bulk验证](history/search/elasticsearch-bulk-2026-11-10.md)。
 - 搜索投影：[内部组装服务](../backend/src/main/java/com/foodmap/restaurant/service/RestaurantSearchProjectionService.java)，字段定义见[ES结构](architecture/elasticsearch-schema.md)。
 - 地图：[高德地图基础闭环](plans/map-foundation.md)，包含导航、点位接口、页面联动及分步验收。
 - 运维：[自动部署与排障](operations/deployment.md)。
@@ -72,18 +72,7 @@ ES 监控的实际故障验证见[故障演练报告](history/elasticsearch-metr
 
 ## 历史追溯
 
-- [帮我选一家交付验证（2026-11-13）](history/restaurant-picker-2026-11-13.md)：完整候选抽样、真实MySQL集成、详情往返、异常场景、手机布局及本机串行耗时。
-
-- [食堂窗口第1至5步验证（2026-11-08）](history/canteen-windows-2026-11-08.md)：身份、评分、并发/回滚、迁移、前端与本地运行证据及限制。
-
-- [v003＋查询熔断最终评测（2026-11-05）](history/elasticsearch-final-benchmark-2026-11-05.md)：当前构建的准确度、串行接口耗时、独立一致性核验及适用限制；当前版本测量优先查阅此报告。
-
-搜索当前进度统一见[实施计划](plans/elasticsearch-search.md)，不在本导航重复维护阶段状态。
-
-- [开发记录01](history/development-01.md)：初始工程、账号与基础认证阶段。
-- [开发记录02](history/development-02.md)：部署、餐厅、评价结构和前端阶段。
-- [开发记录03](history/development-03.md)：地图、商户投稿与图片、统一管理员登录及V17审核存储结构。
-- [开发记录04](history/development-04.md)：2026-11-03至2026-11-18的审核发布、搜索与榜单、社区功能及前后台体验打磨；后续记录见[当前开发记录](development.md)。
+[历史归档](history/README.md)按阶段和主题索引开发记录与专项验证报告。
 
 ## 维护约定
 

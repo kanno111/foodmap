@@ -55,4 +55,4 @@ Docker镜像下载受阻时，可使用Grafana官方Windows发行包。先从官
 - 登录后可直接看到看板，数据源健康检查通过，看板查询无语法或数据源错误。
 - 无流量时部分图表暂无数据是正常情况；发起浏览/搜索并等待至少两个采集点后，QPS和耗时图表应有数据。计数器无需多个点即可展示。
 - 本机UI登录、Grafana代理查询、Prometheus采集属于不同权限边界；未授权访问看板API应被拒绝。后续接入业务管理员页面需单独设计认证及嵌入配置。
-- 首次告警区域验证使用当时真实数据及2026-11-10故障演练保留的历史ALERTS：当时0/0，历史Pending为0/2、历史Firing为2/0；浏览器确认中文名称、状态、级别和表格显示。该阶段19个面板、22条查询通过，证据位于`D:/eat/.codex-previews/grafana-alert-panels/`。新增同步指标后的完整验证见[同步指标报告](../history/elasticsearch-sync-metrics-2026-11-10.md)。
+- 首次告警区域验证使用当时真实数据及2026-11-10故障演练保留的历史ALERTS：当时0/0，历史Pending为0/2、历史Firing为2/0；浏览器确认中文名称、状态、级别和表格显示。该阶段19个面板、22条查询通过，证据位于`D:/eat/.codex-previews/grafana-alert-panels/`。新增同步指标后的完整验证见[同步指标报告](../history/search/elasticsearch-sync-metrics-2026-11-10.md)。

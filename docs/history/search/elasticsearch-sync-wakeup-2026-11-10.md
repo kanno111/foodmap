@@ -1,6 +1,6 @@
 # Outbox提交后唤醒与批内合并验证
 
-日期：2026-11-10。本报告对应提交后异步触发、定时兜底及批内同餐厅合并，不替代此前[同步指标报告](elasticsearch-sync-metrics-2026-11-10.md)。现行机制与指标以[同步说明](../operations/elasticsearch-sync-metrics.md)为准。
+日期：2026-11-10。本报告对应提交后异步触发、定时兜底及批内同餐厅合并，不替代此前[同步指标报告](elasticsearch-sync-metrics-2026-11-10.md)。现行机制与指标以[同步说明](../../operations/elasticsearch-sync-metrics.md)为准。
 
 ## 设计与边界
 

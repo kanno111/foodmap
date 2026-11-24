@@ -12,7 +12,7 @@
 | 故障保护 | 超时、整次SQL降级及Resilience4j查询熔断已实现，保护参数见API与应用配置 |
 | 本地索引 | v004已包含9565条商户投影，新增长期口碑分，结构升级时逐条校验正文及版本；旧索引保留历史快照 |
 | 验收 | 核心搜索已由用户人工验收通过；熔断专项及真实MySQL/ES集成检查通过 |
-| 最终评测 | v003＋熔断版本的正常查询对照已完成，见[最终报告](../history/elasticsearch-final-benchmark-2026-11-05.md) |
+| 最终评测 | v003＋熔断版本的正常查询对照已完成，见[最终报告](../history/search/elasticsearch-final-benchmark-2026-11-05.md) |
 | 运行与部署 | 本地5173/8080已显式开启ES查询和增量同步；共享配置默认关闭，尚未部署线上 |
 
 ## 当前优化阶段：先建立可比较的基线
@@ -68,5 +68,5 @@
 - [接口契约](../api/restaurants.md#search)：默认/显式排序、单字原字语义、访问窗口、降级原因及查询熔断。
 - [索引结构](../architecture/elasticsearch-schema.md)：v003字段、分析器、版本化定义与受控本地升级。
 - [同步任务表](../architecture/mysql-schema.md#restaurant-search-outbox)：任务字段、状态、索引及关联。
-- [当前最终评测](../history/elasticsearch-final-benchmark-2026-11-05.md)：SQL/ES准确度与接口耗时、独立一致性核验及测量限制。
+- [当前最终评测](../history/search/elasticsearch-final-benchmark-2026-11-05.md)：SQL/ES准确度与接口耗时、独立一致性核验及测量限制。
 - [开发记录](../development.md)：最近阶段变化与验证索引。

@@ -6,7 +6,7 @@ V2 是对旧版泥电美食地图的渐进式重构。第一阶段采用模块�
 
 ## 当前阶段
 
-当前功能与未完成范围统一见[功能说明](docs/features.md)，接口与调用规则见[API文档](docs/api.md)。ES搜索的实现进度见[搜索计划](docs/plans/elasticsearch-search.md)，v003历史版本准确度与接口耗时见[最终评测](docs/history/elasticsearch-final-benchmark-2026-11-05.md)。线上可用能力以实际部署版本为准。
+当前功能与未完成范围统一见[功能说明](docs/features.md)，接口与调用规则见[API文档](docs/api.md)。ES搜索的实现进度见[搜索计划](docs/plans/elasticsearch-search.md)，v003历史版本准确度与接口耗时见[最终评测](docs/history/search/elasticsearch-final-benchmark-2026-11-05.md)。线上可用能力以实际部署版本为准。
 
 ## 项目文档
 
@@ -72,7 +72,7 @@ GET http://localhost:8080/api/public/status
 
 邮件健康检查会连接 SMTP、完成 TLS 和账号认证，但不发送邮件，不能据此认定验证码已经投递到收件箱。连接故障可能使 `/actuator/health` 变慢或返回503，而公开状态和餐厅查询仍可正常响应。
 
-本地配置示例通过 `mail.smtp.localhost` 显式指定 EHLO/HELO 客户端名称，避免 Java 自动获取本机规范主机名时等待反向 DNS。已有 `application-local.yml` 需要自行同步该非敏感属性；它不是远端 SMTP 地址，不应修改 `spring.mail.host`。本机 SMTP 认证已复测通过，历史 EOF 尚未复现；排查记录见[开发日志](docs/history/development-02.md#2026-10-28smtp健康检查排查与本地dns延迟修正)。不要为消除告警关闭邮件健康检查，也不要用放宽证书校验或关闭 TLS 替代排查。
+本地配置示例通过 `mail.smtp.localhost` 显式指定 EHLO/HELO 客户端名称，避免 Java 自动获取本机规范主机名时等待反向 DNS。已有 `application-local.yml` 需要自行同步该非敏感属性；它不是远端 SMTP 地址，不应修改 `spring.mail.host`。本机 SMTP 认证已复测通过，历史 EOF 尚未复现；排查记录见[开发日志](docs/history/development/development-02.md#2026-10-28smtp健康检查排查与本地dns延迟修正)。不要为消除告警关闭邮件健康检查，也不要用放宽证书校验或关闭 TLS 替代排查。
 
 运行测试：
 

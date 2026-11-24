@@ -229,6 +229,32 @@ class RestaurantRankingCalculationMySqlIntegrationTest {
     }
 
     @Test
+    void weeklyAndMonthlySnapshotsIncludeAdminCoverButNotOtherPhotos() {
+        for (long restaurantId = 1; restaurantId <= 4; restaurantId++) {
+            restaurant(restaurantId, false);
+            threeReviews(restaurantId, T.minusSeconds(100), "10");
+        }
+        request(1, 1, true);
+        jdbc.update(
+                "INSERT INTO restaurant_photos"
+                    + "(id,restaurant_id,media_file_id,position,source_request_id,uploaded_by)"
+                    + " VALUES(101,1,1,0,1,NULL),(102,2,2,0,NULL,1),"
+                    + "(103,3,3,1,NULL,1),(104,4,4,0,1,NULL)");
+
+        var snapshots = calculation.calculate(T);
+        for (var period : List.of("WEEK", "MONTH")) {
+            var items = items(snapshots, "QINGSHUIHE", period);
+            assertThat(ids(items)).containsExactly("1", "2", "3", "4");
+            assertThat(items.get(0).get("coverUrl").stringValue())
+                    .isEqualTo("/api/restaurants/1/photos/101");
+            assertThat(items.get(1).get("coverUrl").stringValue())
+                    .isEqualTo("/api/restaurants/2/photos/102");
+            assertThat(items.get(2).get("coverUrl").isNull()).isTrue();
+            assertThat(items.get(3).get("coverUrl").isNull()).isTrue();
+        }
+    }
+
+    @Test
     void campusBoardsUseConfiguredGcjCentersAndCanOverlapWithoutSplittingReviewers() {
         restaurant(1, false);
         restaurant(2, true);

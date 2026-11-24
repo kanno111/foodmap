@@ -36,7 +36,7 @@
 
 3. 等待ES恢复后用`POST /restaurant-search/_analyze`分别测试ik_smart和ik_max_word，例如“冒菜馆”“螺蛳粉店”“滨江天街”。仅看文件内容不能证明服务已加载。
 4. 已索引文档不会因词库更新自动重新分词；必须重建新的物理索引后对照查询，再决定别名切换。此次正式v002为空，无需重建正式业务数据；只重建了随机实验索引并在完成后清理。其他已有索引文档原样保留，没有替其他应用重建索引。
-5. 当前词库下的查询结果与接口耗时见[最终评测](../../docs/history/elasticsearch-final-benchmark-2026-11-05.md)。结构初始化工具的--check只核对mapping/settings/别名，不检查外部词典；必须另外核对挂载、词表内容及真实_analyze。
+5. 当前词库下的查询结果与接口耗时见[最终评测](../../docs/history/search/elasticsearch-final-benchmark-2026-11-05.md)。结构初始化工具的--check只核对mapping/settings/别名，不检查外部词典；必须另外核对挂载、词表内容及真实_analyze。
 
 本机安装记录中的绝对路径仅供该开发环境使用；移动仓库需要同步修改两个bind来源。新服务器使用上述独立部署配置，不直接使用本机路径或复制开发数据卷。
 

@@ -1,6 +1,6 @@
 # 固定窗口与Bulk同步验证
 
-日期：2026-11-10。本报告记录[提交后唤醒与合并](elasticsearch-sync-wakeup-2026-11-10.md)之后的本轮变更；现行运行规则和指标见[同步说明](../operations/elasticsearch-sync-metrics.md)。
+日期：2026-11-10。本报告记录[提交后唤醒与合并](elasticsearch-sync-wakeup-2026-11-10.md)之后的本轮变更；现行运行规则和指标见[同步说明](../../operations/elasticsearch-sync-metrics.md)。
 
 ## 问题、选择和范围
 

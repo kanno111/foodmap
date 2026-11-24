@@ -1,6 +1,6 @@
 # 近期餐厅榜单：Redis阶段验证（2026-11-11）
 
-时间边界：本报告记录第二阶段Redis Cache Aside完成时的实现与本机实测。第一阶段的独立运行保留在[MySQL基线报告](restaurant-ranking-read-2026-11-11.md)，不拿两个不同进程的数字直接计算提升。当前规则和后续待办以[榜单计划](../plans/hot-restaurants.md)为准。
+时间边界：本报告记录第二阶段Redis Cache Aside完成时的实现与本机实测。第一阶段的独立运行保留在[MySQL基线报告](restaurant-ranking-read-2026-11-11.md)，不拿两个不同进程的数字直接计算提升。当前规则和后续待办以[榜单计划](../../plans/hot-restaurants.md)为准。
 
 ## 已实现与边界
 
@@ -58,21 +58,21 @@ MySQL基线已经只是四份小JSON的主键查询，页与连接池均预热�
 
 | 文件 | 用途 |
 | --- | --- |
-| [RestaurantRankingCache.java](../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingCache.java) | 单锁Cache Aside、绕过标记、失效、重启门禁与限速修复 |
-| [RestaurantRankingRedisStore.java](../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingRedisStore.java) | 专用连接生命周期与String GET/SET PX/明确键DEL |
-| [RestaurantRankingKey.java](../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingKey.java) | 固定四榜标识、键后缀与周期校验 |
-| [RestaurantRankingConfiguration.java](../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingConfiguration.java) | 时钟和带独立超时、共享线程资源的Redis装配 |
-| [RestaurantRankingProperties.java](../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingProperties.java) | 缓存开关、TTL、超时、修复参数及配置校验 |
-| [RestaurantRankingSnapshotCodec.java](../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingSnapshotCodec.java) | MySQL/Redis共用读取校验、完整JSON编码与公开投影 |
-| [RestaurantRankingReadService.java](../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingReadService.java) | 接入协调器，保留状态及安全503语义 |
-| [RestaurantRankingSnapshotPublishService.java](../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingSnapshotPublishService.java) | 同轮四榜校验、实际事务提交后失效、回滚保旧与旧轮拒绝 |
-| [RestaurantRankingCacheMaintenanceJob.java](../../backend/src/main/java/com/foodmap/restaurant/job/RestaurantRankingCacheMaintenanceJob.java) | 就绪清理及定时有限修复，不生成或异步回填 |
-| [Mapper](../../backend/src/main/java/com/foodmap/restaurant/mapper/RestaurantRankingSnapshotMapper.java) / [SQL](../../backend/src/main/resources/mapper/restaurant/RestaurantRankingSnapshotMapper.xml) | 增加内部事务upsert，无新表迁移 |
-| [application.yml](../../backend/src/main/resources/application.yml) / [application-test.yml](../../backend/src/test/resources/application-test.yml) | 默认启用榜单Redis，普通测试默认关闭真实连接 |
-| [RestaurantRankingCacheTest.java](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingCacheTest.java) | 缓存、并发和恢复单元验证 |
-| [读取单元测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadServiceTest.java) / [真实集成测试](../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java) | 适配共用投影、真实读写/故障与同JVM对照基准 |
-| [benchmark_restaurant_rankings.py](../../backend/tools/benchmark_restaurant_rankings.py) | 显式隔离实例入口、运行元数据与完整样本留存 |
-| [计划](../plans/hot-restaurants.md)、[近期餐厅榜单读取](../api/discovery.md#rankings)、[功能说明](../features.md)、[开发记录](../development.md)、[导航](../README.md)与本报告 | 更新实现状态、契约、验证及证据索引 |
+| [RestaurantRankingCache.java](../../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingCache.java) | 单锁Cache Aside、绕过标记、失效、重启门禁与限速修复 |
+| [RestaurantRankingRedisStore.java](../../../backend/src/main/java/com/foodmap/restaurant/cache/RestaurantRankingRedisStore.java) | 专用连接生命周期与String GET/SET PX/明确键DEL |
+| [RestaurantRankingKey.java](../../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingKey.java) | 固定四榜标识、键后缀与周期校验 |
+| [RestaurantRankingConfiguration.java](../../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingConfiguration.java) | 时钟和带独立超时、共享线程资源的Redis装配 |
+| [RestaurantRankingProperties.java](../../../backend/src/main/java/com/foodmap/restaurant/config/RestaurantRankingProperties.java) | 缓存开关、TTL、超时、修复参数及配置校验 |
+| [RestaurantRankingSnapshotCodec.java](../../../backend/src/main/java/com/foodmap/restaurant/support/RestaurantRankingSnapshotCodec.java) | MySQL/Redis共用读取校验、完整JSON编码与公开投影 |
+| [RestaurantRankingReadService.java](../../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingReadService.java) | 接入协调器，保留状态及安全503语义 |
+| [RestaurantRankingSnapshotPublishService.java](../../../backend/src/main/java/com/foodmap/restaurant/service/RestaurantRankingSnapshotPublishService.java) | 同轮四榜校验、实际事务提交后失效、回滚保旧与旧轮拒绝 |
+| [RestaurantRankingCacheMaintenanceJob.java](../../../backend/src/main/java/com/foodmap/restaurant/job/RestaurantRankingCacheMaintenanceJob.java) | 就绪清理及定时有限修复，不生成或异步回填 |
+| [Mapper](../../../backend/src/main/java/com/foodmap/restaurant/mapper/RestaurantRankingSnapshotMapper.java) / [SQL](../../../backend/src/main/resources/mapper/restaurant/RestaurantRankingSnapshotMapper.xml) | 增加内部事务upsert，无新表迁移 |
+| [application.yml](../../../backend/src/main/resources/application.yml) / [application-test.yml](../../../backend/src/test/resources/application-test.yml) | 默认启用榜单Redis，普通测试默认关闭真实连接 |
+| [RestaurantRankingCacheTest.java](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingCacheTest.java) | 缓存、并发和恢复单元验证 |
+| [读取单元测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadServiceTest.java) / [真实集成测试](../../../backend/src/test/java/com/foodmap/restaurant/RestaurantRankingReadMySqlIntegrationTest.java) | 适配共用投影、真实读写/故障与同JVM对照基准 |
+| [benchmark_restaurant_rankings.py](../../../backend/tools/benchmark_restaurant_rankings.py) | 显式隔离实例入口、运行元数据与完整样本留存 |
+| [计划](../../plans/hot-restaurants.md)、[近期餐厅榜单读取](../../api/discovery.md#rankings)、[功能说明](../../features.md)、[开发记录](../../development.md)、[导航](../../README.md)与本报告 | 更新实现状态、契约、验证及证据索引 |
 
 示例入口（须自行启动私有、可销毁的Redis，数据库账号须能创建隔离库；密码仅取环境或忽略的本地配置，不写入日志）：
 

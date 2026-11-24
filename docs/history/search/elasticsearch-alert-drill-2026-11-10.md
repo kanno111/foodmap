@@ -4,7 +4,7 @@
 
 五条告警规则已加载到本机Prometheus，规则健康均为ok。离线规则测试通过；真实停止ES后，熔断及降级告警均经历Inactive → Pending → Firing，恢复后自然解除。真实浏览器确认Alerts页面显示两条Firing，脚本错误0。
 
-未修改Java或前端业务代码，未配置Alertmanager或消息发送目标，未部署线上。规则及阈值、运行方法以[检索告警说明](../operations/search-alerts.md)为准。
+未修改Java或前端业务代码，未配置Alertmanager或消息发送目标，未部署线上。规则及阈值、运行方法以[检索告警说明](../../operations/search-alerts.md)为准。
 
 ## 环境与方法
 
