@@ -2,6 +2,7 @@
 export function waitForPageLayout(
   isCurrent: () => boolean,
   selector = '.account-center',
+  canRestoreWhileBusy?: (page: Element) => boolean,
 ): Promise<boolean> {
   const deadline = performance.now() + 5000
   return new Promise((resolve) => {
@@ -10,8 +11,8 @@ export function waitForPageLayout(
       const page = document.querySelector(selector)
       if (
         (page &&
-          !page.matches('[aria-busy="true"]') &&
-          !page.querySelector('[aria-busy="true"]')) ||
+          ((!page.matches('[aria-busy="true"]') && !page.querySelector('[aria-busy="true"]')) ||
+            canRestoreWhileBusy?.(page))) ||
         performance.now() >= deadline
       )
         return resolve(true)

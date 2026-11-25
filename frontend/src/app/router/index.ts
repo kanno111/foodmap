@@ -199,7 +199,7 @@ const router = createRouter({
     const ticket = ++scrollGeneration
     // 替换分页或筛选参数不重置阅读位置；真正的历史回退等待列表读取后再恢复。
     if (!savedPosition) return to.path === from.path && to.hash === from.hash ? false : { top: 0 }
-    // 首页返回同样等待目录挂载/首批读取；手机缓存已有全部卡片时可直接恢复原位置。
+    // 首批内容未就绪时等待；首页保留的卡片能容纳原位置时，不必等后台刷新。
     const selector =
       to.path === '/'
         ? '.restaurant-directory'
@@ -210,7 +210,25 @@ const router = createRouter({
             : undefined
     if (selector) {
       await nextTick()
-      if (!(await waitForPageLayout(() => ticket === scrollGeneration, selector))) return false
+      const canRestoreCachedCatalog =
+        to.path === '/'
+          ? (page: Element) => {
+              const scrollRoot = document.scrollingElement
+              return (
+                page.querySelector('.restaurant-grid .restaurant-card') !== null &&
+                scrollRoot !== null &&
+                scrollRoot.scrollHeight - scrollRoot.clientHeight >= savedPosition.top
+              )
+            }
+          : undefined
+      if (
+        !(await waitForPageLayout(
+          () => ticket === scrollGeneration,
+          selector,
+          canRestoreCachedCatalog,
+        ))
+      )
+        return false
     }
     // 历史恢复直接定位，避免继承全站的平滑滚动并显示中间位置。
     return ticket === scrollGeneration ? { ...savedPosition, behavior: 'instant' } : false

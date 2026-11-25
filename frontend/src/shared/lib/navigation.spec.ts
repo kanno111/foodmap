@@ -150,3 +150,21 @@ it('异步列表读取完成才恢复滚动，再次导航会取消旧恢复', a
   await expect(waitForPageLayout(() => false)).resolves.toBe(false)
   expect(frames).toHaveLength(0)
 })
+
+it('已有列表能承载原位置时，无需等待后台刷新完成', async () => {
+  const schedule = vi.fn()
+  vi.stubGlobal('requestAnimationFrame', schedule)
+  host = document.createElement('div')
+  host.className = 'restaurant-directory'
+  host.setAttribute('aria-busy', 'true')
+  document.body.append(host)
+
+  await expect(
+    waitForPageLayout(
+      () => true,
+      '.restaurant-directory',
+      (page) => page === host,
+    ),
+  ).resolves.toBe(true)
+  expect(schedule).not.toHaveBeenCalled()
+})
