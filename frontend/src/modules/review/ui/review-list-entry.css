@@ -349,6 +349,13 @@ button {
   padding: 0;
   border: 0;
 }
+.photos button.photo-pending {
+  border-radius: 8px;
+  background: #f5f6f8;
+}
+.photos button.photo-pending img {
+  visibility: hidden;
+}
 .photos img {
   width: 82px;
   height: 82px;

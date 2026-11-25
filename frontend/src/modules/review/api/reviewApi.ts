@@ -272,10 +272,11 @@ export async function fetchReplies(
   reviewId: string,
   signal: AbortSignal,
   cursor?: string,
+  pageSize = 10,
 ): Promise<ReplyPage> {
   const response = await httpClient.get<ApiResponse<ReplyPage>>(
     `/api/reviews/${encodeURIComponent(reviewId)}/replies`,
-    { params: { pageSize: 10, ...(cursor ? { cursor } : {}) }, signal },
+    { params: { pageSize, ...(cursor ? { cursor } : {}) }, signal },
   )
   const data = response.data.data
   const id = (value: unknown) => typeof value === 'string' && /^[1-9]\d*$/.test(value)
@@ -283,7 +284,7 @@ export async function fetchReplies(
     !response.data.success ||
     !data ||
     !Array.isArray(data.records) ||
-    data.records.length > 10 ||
+    data.records.length > pageSize ||
     typeof data.hasMore !== 'boolean' ||
     (data.hasMore
       ? typeof data.nextCursor !== 'string' ||

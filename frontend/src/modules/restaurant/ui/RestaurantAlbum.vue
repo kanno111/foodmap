@@ -4,12 +4,17 @@ import PhotoViewer from '@/shared/ui/PhotoViewer.vue'
 import { useRestaurantAlbum } from '../model/useRestaurantAlbum'
 
 /** 商户/食堂正式相册，不读取点评页照片；图片错误和分页错误均保留可重试的独立状态。 */
-const props = defineProps<{
-  restaurantId: string
-  name: string
-  /** 详情只留封面，选图及分页放入大图；纠错等既有入口继续使用完整相册。 */
-  compact?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    restaurantId: string
+    name: string
+    /** 详情只留封面，选图及分页放入大图；纠错等既有入口继续使用完整相册。 */
+    compact?: boolean
+    /** 详情提供现有封面状态，空相册在等待首个请求时不插入占位。 */
+    hasCover?: boolean
+  }>(),
+  { hasCover: undefined },
+)
 const emit = defineEmits<{ visibility: [visible: boolean] }>()
 const {
   photos,
@@ -50,9 +55,12 @@ watch(viewerPhotos, (entries) => {
 watch(loading, (value) => {
   if (value) dialog.value?.close()
 })
-// 加载和故障仍保留入口；不能因暂时没有数据隐藏重试，更不能将首批数量冒充相册总数。
 const visible = computed(
-  () => !props.compact || loading.value || !!error.value || photos.value.length > 0,
+  () =>
+    !props.compact ||
+    !!error.value ||
+    photos.value.length > 0 ||
+    (loading.value && props.hasCover !== false),
 )
 watch(visible, (value) => emit('visibility', value), { immediate: true })
 watch(

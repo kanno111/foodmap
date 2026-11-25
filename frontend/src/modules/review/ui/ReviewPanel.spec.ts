@@ -4,7 +4,12 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLoginStore } from '@/modules/auth'
 import { clearAccessToken } from '@/shared/api/authSession'
-import { reviewGatewayKey, unavailableReviewGateway, type ReviewItem } from '../model/review'
+import {
+  reviewGatewayKey,
+  unavailableReviewGateway,
+  type ReplyPage,
+  type ReviewItem,
+} from '../model/review'
 import ReviewPanel from './ReviewPanel.vue'
 
 // 只替换署名和互动传输；卡片、历史、详情与回复编辑器均使用真实组件。
@@ -140,6 +145,7 @@ afterEach(() => {
   clearAccessToken()
   document.documentElement.style.overflow = ''
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   for (const [name, descriptor] of [
     ['showModal', showDescriptor],
     ['close', closeDescriptor],
@@ -191,12 +197,63 @@ describe('店铺与窗口统一点评交互', () => {
     expect(dialog().open).toBe(true)
     expect(dialog().querySelector('.detail-original-body')?.textContent).toBe(item.body)
     expect(dialog().querySelectorAll('.reply-list > li')).toHaveLength(3)
-    expect(listReplies).toHaveBeenCalledWith('10', expect.any(AbortSignal))
+    expect(listReplies).toHaveBeenCalledWith('10', expect.any(AbortSignal), undefined, 2)
     await click('[aria-label="关闭点评详情"]', dialog())
     expect(document.activeElement).toBe(host.querySelector('.review-body-link'))
     await click('.discussion-preview')
     expect(dialog().open).toBe(true)
     expect(listReplies).toHaveBeenCalledTimes(1)
+  })
+  it('only fetches nearby media and shares an in-flight preview before continuing from its cursor', async () => {
+    const observers = new Map<Element, IntersectionObserverCallback>()
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(private readonly intersect: IntersectionObserverCallback) {}
+        observe(target: Element) {
+          observers.set(target, this.intersect)
+        }
+        disconnect() {}
+      },
+    )
+    list.mockResolvedValue({
+      ...page(),
+      records: [
+        { ...item, photos: [{ id: 'a', url: '/nearby-photo' }] },
+        { ...item, id: '11', photos: [{ id: 'b', url: '/offscreen-photo' }] },
+      ],
+    })
+    let finishPreview!: (value: ReplyPage) => void
+    listReplies
+      .mockReturnValueOnce(new Promise<ReplyPage>((resolve) => (finishPreview = resolve)))
+      .mockResolvedValueOnce({ ...replies, records: replies.records.slice(2) })
+
+    await mount()
+    const [nearby, offscreen] = [...host.querySelectorAll('.review-card')]
+    expect(host.textContent).toContain(item.body)
+    expect(listReplies).not.toHaveBeenCalled()
+    expect(host.querySelector('.photos img[src]')).toBeNull()
+
+    observers.get(nearby!)!(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    )
+    await settle()
+    expect(nearby!.querySelector('.photos img')?.getAttribute('src')).toBe('/nearby-photo')
+    expect(offscreen!.querySelector('.photos img')?.hasAttribute('src')).toBe(false)
+    expect(listReplies).toHaveBeenCalledExactlyOnceWith('10', expect.any(AbortSignal), undefined, 2)
+
+    await click('.review-body-link', nearby!)
+    expect(dialog().open).toBe(true)
+    expect(dialog().textContent).toContain(item.body)
+    expect(listReplies).toHaveBeenCalledTimes(1)
+
+    finishPreview({ records: replies.records.slice(0, 2), hasMore: true, nextCursor: 'after-two' })
+    await settle()
+    expect(listReplies).toHaveBeenLastCalledWith('10', expect.any(AbortSignal), 'after-two')
+    expect(listReplies).toHaveBeenCalledTimes(2)
+    expect(dialog().querySelectorAll('.reply-list > li')).toHaveLength(3)
+    expect(offscreen!.querySelector('.photos img')?.hasAttribute('src')).toBe(false)
   })
   it('关闭后保留输入、详情滚动和列表实例，重开仍向原点评发送回复', async () => {
     await mount()

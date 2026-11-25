@@ -31,8 +31,8 @@ const diningMethods = computed(() =>
     .filter(Boolean)
     .join(' / '),
 )
-// 相册自行判断空态与故障；只有成功读到空列表才收起媒体列，不把读取失败当作无图。
-const albumVisible = ref(true)
+// 详情返回的封面决定初始占位；相册读取完成后再以实际结果决定是否显示媒体列。
+const albumVisible = ref(false)
 const route = useRoute()
 const router = useRouter()
 const fromMap = computed(() => route.query.from === 'map')
@@ -124,7 +124,10 @@ async function loadDetail(): Promise<void> {
   dimensionsExpanded.value = false
   try {
     const result = await fetchRestaurant(props.id, signal)
-    if (requestGeneration === generation) restaurant.value = result
+    if (requestGeneration === generation) {
+      albumVisible.value = Boolean(result.coverPhoto)
+      restaurant.value = result
+    }
   } catch (reason) {
     if (requestGeneration !== generation || signal.aborted) return
     // 只有真实404才展示“没有找到”，临时断网和服务故障必须允许重试。
@@ -176,6 +179,7 @@ onUnmounted(() => {
           :key="restaurant.id"
           :restaurant-id="restaurant.id"
           :name="restaurant.name"
+          :has-cover="Boolean(restaurant.coverPhoto)"
           compact
           @visibility="albumVisible = $event"
         />
