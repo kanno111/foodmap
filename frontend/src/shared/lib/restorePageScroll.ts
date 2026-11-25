@@ -17,6 +17,6 @@ export function waitForPageLayout(
         return resolve(true)
       requestAnimationFrame(check)
     }
-    requestAnimationFrame(check)
+    check()
   })
 }

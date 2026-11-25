@@ -211,7 +211,8 @@ const router = createRouter({
       await nextTick()
       if (!(await waitForPageLayout(() => ticket === scrollGeneration, selector))) return false
     }
-    return ticket === scrollGeneration ? savedPosition : false
+    // 历史恢复直接定位，避免继承全站的平滑滚动并显示中间位置。
+    return ticket === scrollGeneration ? { ...savedPosition, behavior: 'instant' } : false
   },
 })
 
