@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { nextTick } from 'vue'
+import HomePage from '@/pages/home/HomePage.vue'
 import { waitForPageLayout } from '@/shared/lib/restorePageScroll'
 
 let scrollGeneration = 0
@@ -180,7 +181,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('@/pages/home/HomePage.vue'),
+      component: HomePage,
     },
     {
       path: '/register',
