@@ -253,6 +253,18 @@ describe('reply HTTP integration', () => {
       signal,
     })
   })
+  it('requests two preview replies and rejects a response exceeding that limit', async () => {
+    const get = vi
+      .spyOn(httpClient, 'get')
+      .mockResolvedValue({ data: { success: true, data: page() } })
+    const signal = new AbortController().signal
+    expect(await fetchReplies('10', signal, undefined, 2)).toEqual(page())
+    expect(get).toHaveBeenCalledWith('/api/reviews/10/replies', { params: { pageSize: 2 }, signal })
+
+    const records = ['1', '2', '3'].map((id) => ({ ...page().records[0], id }))
+    get.mockResolvedValueOnce({ data: { success: true, data: { ...page(), records } } })
+    await expect(fetchReplies('10', signal, undefined, 2)).rejects.toThrow('响应格式')
+  })
   it('rejects malformed pages, duplicate IDs and nonadvancing cursors', async () => {
     const get = vi.spyOn(httpClient, 'get')
     for (const data of [

@@ -119,7 +119,12 @@ export interface ReviewGateway {
     cursor?: string,
   ): Promise<ReviewHistoryPage>
   publish(draft: ReviewDraft): Promise<ReviewPublishReceipt | void>
-  listReplies?(reviewId: string, signal: AbortSignal, cursor?: string): Promise<ReplyPage>
+  listReplies?(
+    reviewId: string,
+    signal: AbortSignal,
+    cursor?: string,
+    pageSize?: number,
+  ): Promise<ReplyPage>
   reply(
     reviewId: string,
     body: string,

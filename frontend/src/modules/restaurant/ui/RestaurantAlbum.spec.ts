@@ -76,13 +76,14 @@ afterEach(() => {
     else Reflect.deleteProperty(HTMLDialogElement.prototype, name)
   }
 })
-async function mount(compact = true) {
+async function mount(compact = true, hasCover?: boolean) {
   app = createApp({
     render: () =>
       h(RestaurantAlbum, {
         restaurantId: '501',
         name: '测试店铺',
         compact,
+        hasCover,
         onVisibility: visibility,
       }),
   })
@@ -148,6 +149,21 @@ describe('紧凑商户相册', () => {
     expect(visibility).not.toHaveBeenCalledWith(false)
     await click('重试相册')
     expect(visibility).toHaveBeenLastCalledWith(false)
+  })
+  it('详情没有封面时不插入占位，相册请求失败后仍显示重试入口', async () => {
+    let failAlbum!: (reason: Error) => void
+    vi.mocked(fetchRestaurantAlbum).mockReturnValue(
+      new Promise((_resolve, reject) => (failAlbum = reject)),
+    )
+    await mount(true, false)
+    expect(host.querySelector<HTMLElement>('.restaurant-album')?.style.display).toBe('none')
+    expect(visibility).toHaveBeenLastCalledWith(false)
+
+    failAlbum(new Error('读取中断'))
+    await settle()
+    expect(host.querySelector<HTMLElement>('.restaurant-album')?.style.display).not.toBe('none')
+    expect(host.textContent).toContain('重试相册')
+    expect(visibility).toHaveBeenLastCalledWith(true)
   })
   it('页首只留封面，大图中选图及失败分页重试不丢选择、不伪造总数', async () => {
     vi.mocked(fetchRestaurantAlbum).mockResolvedValueOnce(page(['11', '12'], '12'))

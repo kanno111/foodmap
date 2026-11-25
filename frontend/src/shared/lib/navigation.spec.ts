@@ -146,7 +146,7 @@ it('异步列表读取完成才恢复滚动，再次导航会取消旧恢复', a
   frames.shift()!(0)
   await pending
   expect(resolved).toBe(true)
-  const cancelled = waitForPageLayout(() => false)
-  frames.shift()!(0)
-  expect(await cancelled).toBe(false)
+  await expect(waitForPageLayout(() => true)).resolves.toBe(true)
+  await expect(waitForPageLayout(() => false)).resolves.toBe(false)
+  expect(frames).toHaveLength(0)
 })

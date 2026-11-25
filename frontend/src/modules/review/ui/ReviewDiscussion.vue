@@ -9,17 +9,22 @@ import AppLink from '@/shared/ui/AppLink.vue'
 import { reviewHistoryHostKey } from '../model/reviewHistoryHost'
 
 /** 各入口共用两条回复预览与独立详情；关闭不卸载编辑器，草稿和失败UUID保留在原组件。 */
-const props = defineProps<{
-  reviewId: string
-  username: string
-  storeName?: string
-  storeTo?: string
-  /** 消息入口直接打开同一面板，不再渲染列表中的回复预览。 */
-  standalone?: boolean
-  /** 目标读取成功后才挂载回复编辑器，错误时仅允许重试和关闭。 */
-  pending?: boolean
-  focusedReply?: ReplyPage['records'][number]
-}>()
+const props = withDefaults(
+  defineProps<{
+    reviewId: string
+    username: string
+    storeName?: string
+    storeTo?: string
+    /** 店铺卡片用两条回复做预览，未接近视口时等待。 */
+    previewInRange?: boolean
+    /** 消息入口直接打开同一面板，不再渲染列表中的回复预览。 */
+    standalone?: boolean
+    /** 目标读取成功后才挂载回复编辑器，错误时仅允许重试和关闭。 */
+    pending?: boolean
+    focusedReply?: ReplyPage['records'][number]
+  }>(),
+  { storeName: undefined, storeTo: undefined, previewInRange: undefined, focusedReply: undefined },
+)
 const emit = defineEmits<{ close: [] }>()
 const gateway = inject(reviewGatewayKey, unavailableReviewGateway)
 const parentVisible = inject(replyScopeVisibleKey, ref(true))
@@ -34,7 +39,9 @@ const visible = computed(() => opened.value && parentVisible.value)
 provide(replyScopeVisibleKey, visible)
 const page = ref<ReplyPage>()
 const loading = ref(false),
+  waitingForPreview = ref(false),
   error = ref('')
+const shortPreview = computed(() => props.previewInRange !== undefined)
 const dialog = ref<globalThis.HTMLDialogElement>(),
   scroll = ref<globalThis.HTMLDivElement>()
 const editor = ref<InstanceType<typeof ReplyThread>>()
@@ -47,6 +54,7 @@ let controller: globalThis.AbortController | undefined,
 let previousOverflow: string | undefined
 let returnFocus: globalThis.HTMLElement | undefined
 let scrollTop = 0
+let focusReplyWhenReady = false
 
 /** 无总数的游标接口只在全部读完时显示确切数量，不能把首批条数当成总数。 */
 const previewLabel = computed(() =>
@@ -56,21 +64,35 @@ function cancelPreview() {
   generation++
   controller?.abort()
   loading.value = false
+  waitingForPreview.value = false
 }
 async function loadPreview() {
-  if (props.standalone || !gateway.listReplies || loading.value || !parentVisible.value) return
+  if (
+    props.standalone ||
+    !gateway.listReplies ||
+    loading.value ||
+    opened.value ||
+    props.previewInRange === false ||
+    !parentVisible.value
+  )
+    return
   const ticket = ++generation
   controller = new globalThis.AbortController()
   loading.value = true
   error.value = ''
   try {
-    const result = await gateway.listReplies(props.reviewId, controller.signal)
+    const result = await (shortPreview.value
+      ? gateway.listReplies(props.reviewId, controller.signal, undefined, 2)
+      : gateway.listReplies(props.reviewId, controller.signal))
     if (ticket === generation) page.value = result
   } catch (reason) {
     if (ticket === generation)
       error.value = reason instanceof Error ? reason.message : '回复加载失败。'
   } finally {
-    if (ticket === generation) loading.value = false
+    if (ticket === generation) {
+      loading.value = false
+      waitingForPreview.value = false
+    }
   }
 }
 function updatePage(value: ReplyPage) {
@@ -81,6 +103,15 @@ function invalidate() {
   page.value = undefined
   if (!opened.value) void loadPreview()
 }
+function focusInput() {
+  if (editor.value) editor.value.focusInput()
+  else if (waitingForPreview.value) focusReplyWhenReady = true
+}
+watch(editor, (thread) => {
+  if (!thread || !opened.value || !focusReplyWhenReady) return
+  focusReplyWhenReady = false
+  thread.focusInput()
+})
 function unlock() {
   if (previousOverflow !== undefined) {
     globalThis.document.documentElement.style.overflow = previousOverflow
@@ -91,7 +122,9 @@ async function show(event?: globalThis.MouseEvent) {
   if (opened.value) return
   returnFocus =
     event?.currentTarget instanceof globalThis.HTMLElement ? event.currentTarget : trigger.value
-  cancelPreview()
+  // 正在请求的预览可作为面板首批数据，避免用户点击时取消后又从头请求。
+  if (!initialized.value) waitingForPreview.value = shortPreview.value && loading.value
+  if (!waitingForPreview.value) cancelPreview()
   initialized.value = true
   opened.value = true
   if (embedded.value && historyHost) {
@@ -114,6 +147,7 @@ function close() {
   if (!opened.value) return
   scrollTop = scroll.value?.scrollTop ?? 0
   opened.value = false
+  focusReplyWhenReady = false
   if (historyHost?.activeId.value === props.reviewId) {
     historyHost.activeId.value = undefined
     historyHost.back.value = undefined
@@ -174,6 +208,7 @@ watch(opened, (value) => {
     stopViewport()
     dialog.value?.style.removeProperty('height')
     dialog.value?.style.removeProperty('top')
+    if (shortPreview.value && !page.value && !error.value) void loadPreview()
   }
 })
 watch(
@@ -202,6 +237,12 @@ watch(
   },
 )
 watch(() => route.fullPath, close)
+watch(
+  () => props.previewInRange,
+  (inRange) => {
+    if (inRange && !page.value) void loadPreview()
+  },
+)
 watch(parentVisible, (value) => {
   if (!value) {
     close()
@@ -311,15 +352,19 @@ defineExpose({ show })
               class="discussion-scroll"
               :class="{ 'has-mute-feedback': muteFeedback }"
             >
-              <slot v-if="initialized" name="original" :focus-input="() => editor?.focusInput()" />
+              <slot v-if="initialized" name="original" :focus-input="focusInput" />
+              <p v-if="waitingForPreview" role="status" class="discussion-preview-loading">
+                正在加载回复…
+              </p>
               <ReplyThread
-                v-if="initialized && !pending"
+                v-if="initialized && !pending && !waitingForPreview"
                 ref="editor"
                 :key="reviewId"
                 :review-id="reviewId"
                 :username="username"
                 detail-mode
                 :initial-page="page"
+                :continue-preview="shortPreview"
                 :focused-reply="focusedReply"
                 @page="updatePage"
                 @invalidate="invalidate"

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { nextTick } from 'vue'
+import HomePage from '@/pages/home/HomePage.vue'
 import { waitForPageLayout } from '@/shared/lib/restorePageScroll'
 
 let scrollGeneration = 0
@@ -180,7 +181,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('@/pages/home/HomePage.vue'),
+      component: HomePage,
     },
     {
       path: '/register',
@@ -211,7 +212,8 @@ const router = createRouter({
       await nextTick()
       if (!(await waitForPageLayout(() => ticket === scrollGeneration, selector))) return false
     }
-    return ticket === scrollGeneration ? savedPosition : false
+    // 历史恢复直接定位，避免继承全站的平滑滚动并显示中间位置。
+    return ticket === scrollGeneration ? { ...savedPosition, behavior: 'instant' } : false
   },
 })
 

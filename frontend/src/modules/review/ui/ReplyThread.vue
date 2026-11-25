@@ -24,6 +24,8 @@ const props = defineProps<{
   /** 独立详情使用常驻阅读和底部编辑器，仍沿用同一套请求隔离与失败重试。 */
   detailMode?: boolean
   initialPage?: ReplyPage
+  /** 店铺预览只有两条，打开详情时自动从预览游标续读一页。 */
+  continuePreview?: boolean
   /** 通知已重新鉴权的指定回复先展示，避免为定位连续扫描所有历史分页。 */
   focusedReply?: ReplyPage['records'][number]
 }>()
@@ -86,6 +88,7 @@ const editing = computed(() =>
 )
 const length = computed(() => Array.from(draft.value.trim()).length)
 let cursor: string | undefined = props.initialPage?.nextCursor ?? undefined
+let previewHasMore = props.continuePreview && hasMore.value
 let readController: globalThis.AbortController | undefined,
   postController: globalThis.AbortController | undefined
 let readGeneration = 0,
@@ -112,6 +115,7 @@ function reset() {
   draft.value = readError.value = sendError.value = notice.value = ''
   request = undefined
   cursor = undefined
+  previewHasMore = false
   records.value = []
   removedTarget.value = false
   highlighted.value = false
@@ -132,10 +136,10 @@ watch(scopeVisible, (visible) => {
     cancelRead()
     if (!props.detailMode && editing.value) activeEditor.value = null
     if (!deleting.value) pendingDelete.value = null
-  } else if (open.value && !loaded.value) void load()
+  } else if (open.value && (!loaded.value || previewHasMore)) void load()
 })
 onMounted(() => {
-  if (props.detailMode && scopeVisible.value && !loaded.value) void load()
+  if (props.detailMode && scopeVisible.value && (!loaded.value || previewHasMore)) void load()
   if (props.detailMode && props.focusedReply) void focusTarget()
 })
 onUnmounted(() => {
@@ -265,6 +269,7 @@ async function load(refresh = false) {
     cursor = page.nextCursor ?? undefined
     hasMore.value = page.hasMore
     loaded.value = true
+    previewHasMore = false
     emit('page', {
       records: records.value.slice(),
       hasMore: hasMore.value,

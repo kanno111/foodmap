@@ -277,6 +277,7 @@ function viewWall(id: string) {
       :preview="preview"
       :star-scale="starScale"
       :list-card="starScale && !preview"
+      :load-media-near-viewport="!preview"
       :authenticated="auth.authenticated"
       :viewer-id="viewerId"
       :busy="busy"

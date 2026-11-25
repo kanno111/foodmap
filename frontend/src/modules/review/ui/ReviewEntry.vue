@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ReviewPhotoSelection } from '../model/review'
 import { formatRating } from '@/shared/lib/formatRating'
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
 import ReplyThread from './ReplyThread.vue'
 import ReviewActionsMenu from './ReviewActionsMenu.vue'
 import ReviewDiscussion from './ReviewDiscussion.vue'
@@ -42,7 +42,29 @@ const props = defineProps<{
   replyTexts: Record<string, string>
   showHistory: boolean
   repliesEnabled?: boolean
+  loadMediaNearViewport?: boolean
 }>()
+const card = ref<globalThis.HTMLElement>()
+const mediaInRange = ref(!props.loadMediaNearViewport)
+let observer: InstanceType<typeof globalThis.IntersectionObserver> | undefined
+onMounted(() => {
+  if (!props.loadMediaNearViewport) return
+  if (!globalThis.IntersectionObserver || !card.value) {
+    mediaInRange.value = true
+    return
+  }
+  observer = new globalThis.IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return
+      mediaInRange.value = true
+      observer?.disconnect()
+    },
+    { rootMargin: '350px 0px' },
+  )
+  observer.observe(card.value)
+})
+onUnmounted(() => observer?.disconnect())
+
 const discussion = ref<InstanceType<typeof ReviewDiscussion>>()
 const historyAccess = ref<globalThis.HTMLElement>()
 const desktop = useMediaQuery('(min-width: 800px)')
@@ -64,6 +86,7 @@ defineEmits<{
 </script>
 <template>
   <article
+    ref="card"
     class="review-card"
     :class="{
       'history-review': item.scoringStatus === 'history',
@@ -154,9 +177,11 @@ defineEmits<{
         v-for="(p, index) in item.photos"
         :key="p.id"
         type="button"
+        :aria-label="'查看评价照片 ' + (index + 1)"
+        :class="{ 'photo-pending': !mediaInRange }"
         @click="$emit('photo', { photos: item.photos, index })"
       >
-        <img :src="p.url" alt="评价照片" loading="lazy" />
+        <img :src="mediaInRange ? p.url : undefined" alt="评价照片" loading="lazy" />
       </button>
     </div>
     <!-- 细分评分仍直接来自原记录，只改变展开方式，不隐藏正文或照片。 -->
@@ -189,6 +214,7 @@ defineEmits<{
         :key="'discussion-' + item.id"
         :review-id="item.id"
         :username="item.username"
+        :preview-in-range="loadMediaNearViewport ? mediaInRange : undefined"
         :store-name="storeName"
         :store-to="storeTo"
       >
