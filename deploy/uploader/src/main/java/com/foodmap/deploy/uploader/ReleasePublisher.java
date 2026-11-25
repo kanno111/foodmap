@@ -57,11 +57,24 @@ final class ReleasePublisher {
             throw new IOException("Missing release archive, checksum, or deployment script.");
         }
         String digest = verifyChecksum(archive, checksum);
-        var parts = ReleaseSplitter.split(archive, scratch.resolve("parts"));
-        var cache = new ReleasePartCache(ssh, digest, target.incoming(), parts);
         ssh.checkPinnedHost(CONNECT_BUDGET);
+        ssh.ssh("umask 077 && mkdir '" + target.incoming() + "'", CONNECT_BUDGET, "Create release staging directory");
+        if (ReleaseDelta.tryUpload(workspace.resolve("release"), target.incoming(), digest, ssh, log)) {
+            uploadMetadata(ssh, metadata, CONNECT_BUDGET);
+        } else {
+            uploadArchive(archive, checksum, scratch, digest, metadata, target.incoming(), ssh, log);
+        }
+        // 远端已经验证整包。激活只调用一次，连接中断时不能断定服务器是否已切换。
+        long start = System.nanoTime();
+        ssh.ssh("cd '" + target.incoming() + "' && bash './deploy.sh' '" + target.releaseId() + "'",
+                ACTIVATION_BUDGET, "Activate release (check server version if the connection was interrupted)");
+        log.printf("Release activation completed in %d ms.%n", ChunkUploader.elapsedMillis(start));
+    }
 
-        String incoming = "'" + target.incoming() + "'";
+    private static void uploadArchive(Path archive, Path checksum, Path scratch, String digest, List<Path> metadata,
+            String incoming, OpenSshClient ssh, PrintStream log) throws IOException, InterruptedException {
+        var parts = ReleaseSplitter.split(archive, scratch.resolve("parts"));
+        var cache = new ReleasePartCache(ssh, digest, incoming, parts);
         long start = System.nanoTime();
         long deadline = start + UPLOAD_BUDGET.toNanos();
         var missing = cache.missingParts(CONNECT_BUDGET);
@@ -73,18 +86,17 @@ final class ReleasePublisher {
             throw new IOException("Overall upload deadline reached before uploading metadata.");
         }
         Duration metadataTimeout = remaining.compareTo(CONNECT_BUDGET) < 0 ? remaining : CONNECT_BUDGET;
-        OpenSshClient.requireSuccess(ssh.copy(metadata, metadataTimeout), "Upload release metadata");
+        uploadMetadata(ssh, metadata, metadataTimeout);
         log.printf("Release upload completed in %d ms.%n", ChunkUploader.elapsedMillis(start));
 
         start = System.nanoTime();
         cache.assemble(ASSEMBLY_BUDGET);
         log.printf("Remote assembly and checksum completed in %d ms.%n", ChunkUploader.elapsedMillis(start));
+    }
 
-        // 远端已经验证整包。激活只调用一次，连接中断时不能断定服务器是否已切换。
-        start = System.nanoTime();
-        ssh.ssh("cd " + incoming + " && bash './deploy.sh' '" + target.releaseId() + "'",
-                ACTIVATION_BUDGET, "Activate release (check server version if the connection was interrupted)");
-        log.printf("Release activation completed in %d ms.%n", ChunkUploader.elapsedMillis(start));
+    private static void uploadMetadata(OpenSshClient ssh, List<Path> metadata, Duration timeout)
+            throws IOException, InterruptedException {
+        OpenSshClient.requireSuccess(ssh.copy(metadata, timeout), "Upload release metadata");
     }
 
     private static String verifyChecksum(Path archive, Path checksum) throws IOException {

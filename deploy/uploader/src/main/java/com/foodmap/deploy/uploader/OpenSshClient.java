@@ -67,6 +67,19 @@ final class OpenSshClient {
         return runner.run(command, timeout, Output.QUIET);
     }
 
+    Result syncRelease(Path source, String basis, Duration timeout) throws IOException, InterruptedException {
+        var remoteShell = new ArrayList<String>();
+        remoteShell.add("ssh");
+        remoteShell.addAll(options);
+        remoteShell.addAll(List.of("-p", target.port()));
+        // rsync 的远程 shell 参数使用它自己的引号规则，所有 SSH 参数保持为独立项。
+        String shell = String.join(" ", remoteShell.stream().map(value -> "'" + value.replace("'", "''") + "'").toList());
+        var command = List.of("rsync", "-rpt", "--checksum", "--no-whole-file", "--stats",
+                "--copy-dest=" + basis, "-e", shell, "--", source.toAbsolutePath() + "/",
+                target.address() + ":" + target.incoming() + "/delta/");
+        return runner.run(command, timeout, Output.CAPTURE);
+    }
+
     static void requireSuccess(Result result, String step) throws IOException {
         if (!result.success()) {
             throw new IOException(step + " failed (" + result.description() + ").");

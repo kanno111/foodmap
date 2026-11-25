@@ -35,6 +35,7 @@ class ReleasePublisherTest {
             new OpenSshClient.Result(1, false, "client_loop: send disconnect: Broken pipe", "");
     private static final OpenSshClient.Result DENIED =
             new OpenSshClient.Result(1, false, "Permission denied (publickey). Connection closed", "");
+    private static final String BASIS = "/opt/foodmap/releases/" + "b".repeat(40) + "-99-1";
     private static final Map<String, String> ENV = Map.of(
             "DEPLOY_HOST", "example.test", "DEPLOY_USER", "foodmap-deploy", "DEPLOY_PORT", "02222",
             "GITHUB_SHA", "a".repeat(40), "GITHUB_RUN_ID", "100", "GITHUB_RUN_ATTEMPT", "2");
@@ -122,6 +123,56 @@ class ReleasePublisherTest {
     }
 
     @Test
+    void transfersDeltaUsingPinnedSshThenVerifiesArchiveBeforeActivation() throws Exception {
+        prepareDeltaSource();
+        publish(command -> hasText(command, "readlink -f") ? inventory(BASIS + "\n") : OK);
+
+        var rsync = calls.stream().filter(command -> command.getFirst().equals("rsync")).findFirst().orElseThrow();
+        assertTrue(rsync.contains("--copy-dest=" + BASIS));
+        assertTrue(rsync.contains("--no-whole-file"));
+        assertTrue(hasText(rsync, "StrictHostKeyChecking=yes"));
+        assertEquals(1, count("'.delta-release.tar.gz' | sha256sum --check --status"));
+        assertEquals(1, count("rm -rf -- delta .delta-release.tar.gz"));
+        assertEquals(0, count("for part in release.part."));
+        assertEquals(1, count("healthcheck.py"));
+        assertEquals(1, count("bash './deploy.sh'"));
+        assertTrue(calls.getLast().getLast().contains("bash './deploy.sh'"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"rsync", ".delta-release.tar.gz' | sha256sum"})
+    void fallsBackToVerifiedPartsWhenDeltaTransferOrChecksumFails(String failure) throws Exception {
+        prepareDeltaSource();
+        publish(command -> {
+            if (hasText(command, "readlink -f")) {
+                return inventory(BASIS + "\n");
+            }
+            if (command.getFirst().equals(failure) || (command.getFirst().equals("ssh") && hasText(command, failure)
+                    && !failure.equals("rsync"))) {
+                return DROPPED;
+            }
+            return OK;
+        });
+
+        assertEquals(1, count("rm -rf -- delta .delta-release.tar.gz"));
+        assertEquals(1, partAttempts("0000"));
+        assertEquals(1, partAttempts("0001"));
+        assertEquals(1, count("sha256sum --check --status SHA256SUMS"));
+        assertEquals(1, count("bash './deploy.sh'"));
+    }
+
+    @Test
+    void skipsDeltaWhenCurrentReleasePathIsOutsideReleaseDirectory() throws Exception {
+        prepareDeltaSource();
+        publish(command -> hasText(command, "readlink -f") ? inventory("/tmp/backend.jar\n") : OK);
+
+        assertFalse(calls.stream().anyMatch(command -> command.getFirst().equals("rsync")));
+        assertEquals(1, partAttempts("0000"));
+        assertEquals(1, partAttempts("0001"));
+        assertEquals(1, count("bash './deploy.sh'"));
+    }
+
+    @Test
     void reusesVerifiedPartFromAnEarlierFailedAttempt() throws Exception {
         var cached = new CountDownLatch(1);
         assertThrows(IOException.class, () -> publish(command -> {
@@ -146,7 +197,7 @@ class ReleasePublisherTest {
                 verifiedPart + "  release.part.0000\n") : OK);
         assertEquals(0, partAttempts("0000"));
         assertEquals(1, partAttempts("0001"));
-        assertTrue(calls.get(1).getLast().contains(cachePath));
+        assertTrue(calls.stream().anyMatch(command -> hasText(command, cachePath) && hasText(command, "for part in")));
         assertTrue(calls.get(1).getLast().contains("-100-3"));
         assertEquals(1, count("bash './deploy.sh'"));
     }
@@ -242,6 +293,13 @@ class ReleasePublisherTest {
             return "/" + absolute.substring(0, 1).toLowerCase(Locale.ROOT) + absolute.substring(2);
         }
         return absolute;
+    }
+
+    private void prepareDeltaSource() throws IOException {
+        Files.createDirectories(directory.resolve("release/frontend"));
+        Files.writeString(directory.resolve("release/backend.jar"), "backend");
+        Files.writeString(directory.resolve("release/frontend/index.html"), "<html>test</html>");
+        Files.writeString(directory.resolve("release/commit.txt"), ENV.get("GITHUB_SHA") + "\n");
     }
 
     @ParameterizedTest

@@ -30,7 +30,7 @@ final class ReleasePartCache {
 
     List<Path> missingParts(Duration timeout) throws IOException, InterruptedException {
         var result = ssh.remote(
-                "umask 077 && mkdir '" + incoming + "' && test ! -L '" + CACHE_ROOT
+                "umask 077 && test ! -L '" + CACHE_ROOT
                         + "' && test ! -L '" + directory + "' && mkdir -p '" + directory + "' && cd '" + directory + "'"
                         + " && for part in release.part.[0-9][0-9][0-9][0-9]; do"
                         + " if test -f \"$part\" && test ! -L \"$part\"; then sha256sum --binary -- \"$part\" || exit 1; fi; done",
