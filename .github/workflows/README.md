@@ -76,7 +76,7 @@ PR 检查、develop 检查以及 SSH 客户端均运行在 GitHub 的 `ubuntu-24
 
 ## CD 的开启条件与配置
 
-`deploy` 作业依赖三项 CI 检查成功，还必须同时满足：仓库为 `kanno111/foodmap`、事件为 `push`、分支为 `develop`，以及仓库变量 `AUTO_DEPLOY_ENABLED` 为字符串 `true`。作业使用 `production` 环境，超时为 35 分钟，为传输、拼接校验和应用启动预留各自的时间。
+`deploy` 作业依赖三项 CI 检查成功，还必须同时满足：仓库为 `kanno111/foodmap`、事件为 `push`、分支为 `develop`，以及仓库变量 `AUTO_DEPLOY_ENABLED` 为字符串 `true`。作业使用 `production` 环境，总超时为 60 分钟，为增量传输超时后的整包回退、拼接校验和应用启动留出时间。
 
 | 配置位置 | 名称 | 用途 |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ flowchart TD
 
 ### 健康检查
 
-[healthcheck.py](../../deploy/healthcheck.py) 在服务器本机检查下列内容。发布入口配置最多 40 轮，每轮失败后间隔 3 秒，每个 HTTP 请求超时 15 秒，实际耗时包含每轮请求。GitHub 部署作业超时为 35 分钟。
+[healthcheck.py](../../deploy/healthcheck.py) 在服务器本机检查下列内容。发布入口配置最多 40 轮，每轮失败后间隔 3 秒，每个 HTTP 请求超时 15 秒，实际耗时包含每轮请求。
 
 | 检查 | 预期结果 |
 | --- | --- |

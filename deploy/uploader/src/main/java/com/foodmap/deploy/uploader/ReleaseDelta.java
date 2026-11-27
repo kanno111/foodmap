@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 final class ReleaseDelta {
     private static final Pattern RELEASE_PATH = Pattern.compile("/opt/foodmap/releases/[a-f0-9]{40}-[0-9]+-[0-9]+");
     private static final Duration BASIS_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration TRANSFER_TIMEOUT = Duration.ofSeconds(75);
+    private static final Duration TRANSFER_TIMEOUT = Duration.ofMinutes(10);
     private static final Duration PACKAGE_TIMEOUT = Duration.ofSeconds(20);
 
     private ReleaseDelta() {}

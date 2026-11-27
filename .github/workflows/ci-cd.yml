@@ -146,7 +146,7 @@ jobs:
     # 测试、打包和SSH客户端均在GitHub托管机器执行。
     runs-on: ubuntu-24.04
     environment: production
-    timeout-minutes: 35
+    timeout-minutes: 60
     # 不取消正在切换版本的部署，避免进程被中断后留下半完成状态。
     concurrency:
       group: foodmap-server-deployment

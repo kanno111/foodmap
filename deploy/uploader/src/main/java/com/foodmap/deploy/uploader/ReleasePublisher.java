@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 final class ReleasePublisher {
-    private static final Duration UPLOAD_BUDGET = Duration.ofMinutes(20);
+    private static final Duration UPLOAD_BUDGET = Duration.ofMinutes(30);
     private static final Duration CONNECT_BUDGET = Duration.ofSeconds(45);
     private static final Duration ASSEMBLY_BUDGET = Duration.ofSeconds(90);
     private static final Duration ACTIVATION_BUDGET = Duration.ofMinutes(10);
