@@ -1,6 +1,7 @@
 package com.foodmap.notification.mapper;
 
 import com.foodmap.notification.entity.AnnouncementEntity;
+import com.foodmap.notification.vo.AnnouncementViews;
 
 import org.apache.ibatis.annotations.*;
 
@@ -23,6 +24,15 @@ public interface AnnouncementMapper {
                     + " AND (#{audience}='ANY' OR audience=#{audience})";
 
     record RecipientPreviewRow(long announcementId, long userId, int recipientCount) {}
+
+    @Select("""
+            <script>
+            SELECT id, title, status = 'TARGETED_WITHDRAWN' AS withdrawn
+            FROM notification_announcements WHERE audience = 'TARGETED' AND id IN
+            <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+            </script>
+            """)
+    List<AnnouncementViews.RewardSource> rewardSources(@Param("ids") List<Long> ids);
 
     @Insert(
             "INSERT INTO"

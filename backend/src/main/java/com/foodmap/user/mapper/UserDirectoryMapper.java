@@ -9,6 +9,14 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface UserDirectoryMapper {
     @Select("""
+            SELECT u.id, u.username, u.avatar_file_id IS NOT NULL AS has_avatar, u.muted_at,
+                u.created_at, u.status,
+            """ + UserMuteMapper.MODERATABLE + """
+            AS can_moderate FROM users u WHERE u.id = #{id} AND u.status != 'DELETED'
+            """)
+    UserDirectoryEntry find(long id);
+
+    @Select("""
             <script>
             SELECT u.id, u.username, u.avatar_file_id IS NOT NULL AS has_avatar, u.muted_at,
             """ + UserMuteMapper.MODERATABLE + """

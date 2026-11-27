@@ -12,14 +12,17 @@ export function isReturnDestination(value: unknown): value is string {
 }
 
 /** 普通点击回退原历史条目以恢复阅读现场；直达和修饰键打开仍有固定站内链接。 */
-export function useReturnNavigation(fallback: MaybeRefOrGetter<string>) {
+export function useReturnNavigation(
+  fallback: MaybeRefOrGetter<string>,
+  canReturn = isReturnDestination,
+) {
   const route = useRoute(),
     router = useRouter()
   const returnTarget = computed(() => {
     // 历史状态不是响应式数据，当前地址变化时重新核对来路。
     void route.fullPath
     const previous = router.options.history.state.back
-    return isReturnDestination(previous) && previous.split(/[?#]/, 1)[0] !== route.path
+    return canReturn(previous) && previous.split(/[?#]/, 1)[0] !== route.path
       ? previous
       : toValue(fallback)
   })

@@ -10,6 +10,8 @@ import com.foodmap.notification.mapper.AnnouncementMapper;
 import com.foodmap.notification.vo.AnnouncementViews;
 import com.foodmap.security.service.CurrentActorService;
 import com.foodmap.user.service.UserDirectoryService;
+import com.foodmap.user.domain.ManualRewardType;
+import com.foodmap.user.service.UserManualRewardService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -36,6 +38,18 @@ public class AnnouncementService {
     private final CurrentActorService actors;
     private final NotificationChangeService changes;
     private final UserDirectoryService users;
+    private final UserManualRewardService rewards;
+
+    /** 只为管理端奖励历史补充来源标题和撤回状态。 */
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional(readOnly = true)
+    public Map<Long, AnnouncementViews.RewardSource> rewardSources(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return announcements.rewardSources(ids).stream()
+                .collect(Collectors.toMap(AnnouncementViews.RewardSource::id, source -> source));
+    }
 
     /** 使用发布人+UUID去重；唯一键竞争结束后核验摘要，失败整笔回滚。 */
     @PreAuthorize("hasRole('ADMIN')")
@@ -54,7 +68,9 @@ public class AnnouncementService {
                         .putLong(uuid.getLeastSignificantBits())
                         .array();
         List<Long> recipients = recipientIds(request.getRecipientUserIds(), targeted);
-        byte[] hash = hash(title, content, recipients);
+        var reward = request.getRewardRegistration();
+        String rewardNote = rewardNote(reward, targeted);
+        byte[] hash = hash(title, content, recipients, reward, rewardNote);
         var row = new AnnouncementEntity();
         row.setClientRequestId(key);
         row.setRequestHash(hash);
@@ -81,6 +97,9 @@ public class AnnouncementService {
                         CommonErrorCode.VALIDATION_FAILED, "有收件人已不可用，请重新选择。");
             }
             announcements.insertRecipients(row.getId(), recipients);
+            if (reward != null) {
+                rewards.register(recipients, reward.getType(), rewardNote, row.getId(), owner);
+            }
             recipients.forEach(changes::changed);
         } else {
             changes.allChanged();
@@ -323,13 +342,40 @@ public class AnnouncementService {
         return ids.stream().map(this::key).distinct().sorted().toList();
     }
 
-    private byte[] hash(String title, String content, List<Long> recipients) {
+    private String rewardNote(AnnouncementPublishRequest.RewardRegistration reward, boolean targeted) {
+        if (reward == null) {
+            return null;
+        }
+        if (!targeted || reward.getType() == null) {
+            throw invalid();
+        }
+        String note = reward.getNote();
+        if (note == null || note.isBlank()) {
+            if (reward.getType() == ManualRewardType.OTHER) {
+                throw new BusinessException(CommonErrorCode.VALIDATION_FAILED, "选择其他奖励时必须填写说明。");
+            }
+            return null;
+        }
+        return normalize(note, 300);
+    }
+
+    private byte[] hash(String title, String content, List<Long> recipients,
+            AnnouncementPublishRequest.RewardRegistration reward, String rewardNote) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
             byte[] first = title.getBytes(StandardCharsets.UTF_8);
             byte[] body = content.getBytes(StandardCharsets.UTF_8);
             // 全体公告沿用既有摘要。指定公告使用独立前缀与长度边界，收件人顺序不影响重试。
-            if (!recipients.isEmpty()) {
+            if (reward != null) {
+                // 奖励登记使用独立摘要格式，已发布的普通公告保留既有重试协议。
+                digest.update(ByteBuffer.allocate(4).putInt(-2).array());
+                var type = reward.getType().name().getBytes(StandardCharsets.UTF_8);
+                var note = (rewardNote == null ? "" : rewardNote).getBytes(StandardCharsets.UTF_8);
+                digest.update(ByteBuffer.allocate(4).putInt(type.length).array());
+                digest.update(type);
+                digest.update(ByteBuffer.allocate(4).putInt(note.length).array());
+                digest.update(note);
+            } else if (!recipients.isEmpty()) {
                 digest.update(ByteBuffer.allocate(4).putInt(-1).array());
             }
             digest.update(ByteBuffer.allocate(4).putInt(first.length).array());

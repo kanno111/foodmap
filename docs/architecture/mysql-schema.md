@@ -193,6 +193,24 @@ V56 为 `user` 模块新增两张 InnoDB 表，默认字符集为 utf8mb4，排�
 
 管理员发码权限由服务端校验。发码、核销、撤销使用 MySQL 时钟。一次性码通过注册事务内的条件更新核销，要求仍有效、未撤销及未使用。已绑定邮箱的码须精确匹配该地址，未绑定的码使用申请人验证过的个人邮箱。账号与使用记录随事务提交。长期码每次成功注册追加一条记录。邀请码状态及使用记录存于 MySQL，Redis 原子校验邮箱发送额度及校友码发送额度。
 
+<a id="user-manual-rewards"></a>
+
+### `user_manual_reward_records`：人工奖励登记
+
+V59 新建此表。每次登记给每位获奖人保存一行。奖励说明是管理端信息，原公告仍按公告协议发送。
+
+| 字段 | 类型 | 可空 | 含义 |
+| --- | --- | --- | --- |
+| `id` | `bigint unsigned` | 否 | 自增主键 |
+| `user_id` | `bigint unsigned` | 否 | 获奖用户 ID |
+| `reward_type` | `varchar(24)`，ASCII/ascii_bin | 否 | `FIRST_REVIEW`、`REGISTRATION_INVITE` 或 `OTHER` |
+| `reward_note` | `varchar(300)` | 是 | 可选说明，`OTHER` 必须提供非空白说明 |
+| `source_announcement_id` | `bigint unsigned` | 否 | 来源公告逻辑 ID |
+| `recorded_by` | `bigint unsigned` | 否 | 登记管理员 ID，历史补录记录实际操作人 |
+| `recorded_at` | `timestamp(6)` | 否 | 数据库登记时间 |
+
+唯一键 `(source_announcement_id,user_id)` 保证每个用户在同一公告下只登记一次。索引 `(user_id,recorded_at DESC,id DESC)` 支持管理端分页。登记随公告和收件名单提交，撤回公告保留记录。旧公告的补录流程见[首次点评奖励补录](../operations/backfill-first-review-rewards.md)。
+
 <a id="restaurant-schema"></a>
 
 ## 餐厅与食堂表结构

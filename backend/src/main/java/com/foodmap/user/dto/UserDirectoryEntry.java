@@ -11,4 +11,6 @@ public class UserDirectoryEntry {
     private boolean hasAvatar;
     private Instant mutedAt;
     private boolean canModerate;
+    private Instant createdAt;
+    private String status;
 }

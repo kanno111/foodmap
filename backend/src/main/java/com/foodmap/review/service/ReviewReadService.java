@@ -3,6 +3,7 @@ package com.foodmap.review.service;
 import com.foodmap.common.exception.BusinessException;
 import com.foodmap.growth.service.GrowthQueryService;
 import com.foodmap.restaurant.service.RestaurantReadService;
+import com.foodmap.restaurant.service.RestaurantReviewTargetService;
 import com.foodmap.review.dto.ReviewHistoryQuery;
 import com.foodmap.review.dto.ReviewListQuery;
 import com.foodmap.review.entity.ReviewPhotoReferenceEntity;
@@ -38,6 +39,29 @@ public class ReviewReadService {
     private final ReviewPhotoMapper photos;
     private final PublicAuthorService authors;
     private final GrowthQueryService growth;
+    private final RestaurantReviewTargetService reviewTargets;
+
+    public record AuthorReview(String restaurantName, ReviewPageVo.CurrentReview review) {}
+
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<AuthorReview> pageByAuthor(long user, int limit, long offset) {
+        var rows = mapper.pageByAuthor(user, limit, offset);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        var targets = reviewTargets.visible(rows.stream().map(ReviewReadEntity::getRestaurantId).toList());
+        var references = photos.references(rows.stream().map(ReviewReadEntity::getId).toList()).stream()
+                .collect(Collectors.groupingBy(ReviewPhotoReferenceEntity::getReviewId));
+        return rows.stream().map(row -> {
+            var target = targets.get(row.getRestaurantId());
+            // 只有仍可读取的父店会提供正式照片地址。
+            var review = current(row, target == null ? List.of() : references.getOrDefault(row.getId(), List.of()));
+            if (row.isHistorical()) {
+                review.setScoringStatus("history");
+            }
+            return new AuthorReview(target == null ? "商户不可用" : target.getName(), review);
+        }).toList();
+    }
 
     /** 所有已发布且仍保留的记录均计数，同一店的历史点评也各算一条。 */
     @PreAuthorize("hasRole('ADMIN')")

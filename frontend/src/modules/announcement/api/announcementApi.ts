@@ -30,7 +30,14 @@ export interface AnnouncementInput {
   title: string
   content: string
   recipientUserIds?: readonly string[]
+  rewardRegistration?: { type: ManualRewardType; note?: string }
 }
+export const manualRewardLabels = {
+  FIRST_REVIEW: '首次点评',
+  REGISTRATION_INVITE: '注册邀请',
+  OTHER: '其他',
+} as const
+export type ManualRewardType = keyof typeof manualRewardLabels
 export interface AnnouncementRecipient {
   id: string
   username: string

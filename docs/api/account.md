@@ -23,6 +23,7 @@
 | POST | `/auth/logout` | Bearer | 200 | [当前身份与退出](#identity-logout) |
 | GET | `/api/admin/me` | 管理员 | 200 | [工作台身份校验](#admin-session) |
 | GET | `/api/admin/users` | 管理员 | 200 | [管理端用户查询](#admin-user-directory) |
+| GET | `/api/admin/users/{id}`、`/{id}/reviews`、`/{id}/invitees`、`/{id}/rewards` | 管理员 | 200 | [管理端用户详情](#admin-user-detail) |
 | PUT | `/api/admin/users/{id}/mute` | 管理员 | 200 | [禁言和解禁](#admin-user-mute) |
 | GET | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
 | PATCH / PUT | `/api/me/profile` | Bearer | 200 | [本人资料与简介](#profile) |
@@ -46,16 +47,31 @@
 **响应**
 
 ```json
-{"records":[{"id":"22","username":"校园食客","hasAvatar":true,"reviewCount":4,"approvedSubmissionCount":2,"mutedAt":null,"canModerate":true}],"total":1,"page":1,"pageSize":20,"totalPages":1}
+{"records":[{"id":"22","username":"校园食客","hasAvatar":true,"reviewCount":4,"approvedSubmissionCount":2,"invitedRegistrationCount":1,"mutedAt":null,"canModerate":true}],"total":1,"page":1,"pageSize":20,"totalPages":1}
 ```
 
 `hasAvatar` 表示有绑定头像，可以通过[头像接口](#avatar)读取。点评数按仍保留的正式点评计，同一店的历史点评各算一条，待审附带点评不计入。投稿审核通过数包括通过的新店投稿、资料纠错和已收录关联。空结果返回空数组。
+
+`invitedRegistrationCount` 统计使用该用户个人邀请码成功注册的账号数。
 
 `mutedAt` 为当前禁言开始时间，未禁言返回 null。`canModerate` 表示当前账号可进行禁言操作。
 
 **错误码**
 
 鉴权失败 401，普通账号 403，无效参数 400。错误格式见[通用错误](common.md#errors)。
+
+<a id="admin-user-detail"></a>
+
+## 管理端用户详情
+
+以下接口需要管理员 Bearer 会话，成功响应带 `Cache-Control: no-store`。ID 是正 Long 十进制字符串，不存在或已删除的目标返回 404。列表接口支持 `page`（默认 1）和 `pageSize`（默认 20，最多 50），返回 `{records,totalPages}`。
+
+| 路径 | 返回内容 |
+| --- | --- |
+| `/api/admin/users/{id}` | 目录字段、`createdAt`、`status`、`registrationSource`。来源 `kind` 为 `DIRECT`、`REFERRAL`（可有 `inviterName`）或 `ADMIN_INVITE` |
+| `/api/admin/users/{id}/reviews` | 当前及历史的正式点评，按时间和 ID 倒序。含商户名、正文、四项评分、推荐态度、综合分、时间和正式照片引用 |
+| `/api/admin/users/{id}/invitees` | 个人邀请码的成功注册用户，含账号 ID、用户名、头像标记、注册时间和 `profileAvailable` |
+| `/api/admin/users/{id}/rewards` | 管理员登记过的奖励，含 `rewardType`、`rewardNote`、`sourceAnnouncementId`、`sourceAnnouncementTitle`、`sourceWithdrawn` 和 `recordedAt`，按登记时间和 ID 倒序 |
 
 <a id="admin-user-mute"></a>
 
