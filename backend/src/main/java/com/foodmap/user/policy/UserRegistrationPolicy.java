@@ -32,22 +32,39 @@ public class UserRegistrationPolicy {
      * @return 去除首尾空白并转换为小写的邮箱
      */
     public String normalizeCampusEmail(String email) {
-        Objects.requireNonNull(email, "email must not be null");
-        String normalized = email.trim().toLowerCase(Locale.ROOT);
+        String normalized = normalizeEmail(email);
         int separator = normalized.indexOf('@');
         if (separator <= 0 || separator != normalized.lastIndexOf('@') || separator == normalized.length() - 1) {
             throw new BusinessException(UserErrorCode.CAMPUS_EMAIL_REQUIRED);
         }
 
-        String domain = normalized.substring(separator + 1);
-        boolean allowed = properties.getAllowedEmailDomains().stream()
-                .map(String::trim)
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .anyMatch(domain::equals);
-        if (!allowed) {
+        if (!isCampusDomain(normalized.substring(separator + 1))) {
             throw new BusinessException(UserErrorCode.CAMPUS_EMAIL_REQUIRED);
         }
         return normalized;
+    }
+
+    /** 校友邀请绑定格式已校验的个人邮箱，沿用校园账号的大小写规范。 */
+    public String normalizePersonalEmail(String email) {
+        String normalized = normalizeEmail(email);
+        int separator = normalized.lastIndexOf('@');
+        if (separator <= 0 || separator == normalized.length() - 1
+                || isCampusDomain(normalized.substring(separator + 1))) {
+            throw new BusinessException(UserErrorCode.PERSONAL_EMAIL_REQUIRED);
+        }
+        return normalized;
+    }
+
+    private static String normalizeEmail(String email) {
+        Objects.requireNonNull(email, "email must not be null");
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isCampusDomain(String domain) {
+        return properties.getAllowedEmailDomains().stream()
+                .map(String::trim)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .anyMatch(domain::equals);
     }
 
     /**

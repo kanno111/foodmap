@@ -10,6 +10,7 @@ import { favoritePage, favoriteVisibility } from '@/modules/restaurant/api/favor
 import { fetchOwnGrowth, type GrowthSummary } from '../api/growthApi'
 import AccountCenter from './AccountCenter.vue'
 import { fetchOwnProfile, updateOwnBio, type OwnProfile } from '../api/profileApi'
+import { requestReferralCode } from '../api/referralCodeApi'
 import { fetchMyRequestPage } from '@/modules/restaurant/api/myRestaurantRequestsApi'
 
 vi.mock('@/modules/community/api/followsApi', () => ({
@@ -23,6 +24,7 @@ vi.mock('@/modules/restaurant/api/favoriteApi', async (original) => ({
 }))
 vi.mock('../api/growthApi', () => ({ fetchOwnGrowth: vi.fn() }))
 vi.mock('../api/profileApi', () => ({ fetchOwnProfile: vi.fn(), updateOwnBio: vi.fn() }))
+vi.mock('../api/referralCodeApi', () => ({ requestReferralCode: vi.fn() }))
 vi.mock('@/modules/restaurant/api/myRestaurantRequestsApi', async (original) => ({
   ...(await original<typeof import('@/modules/restaurant/api/myRestaurantRequestsApi')>()),
   fetchMyRequestPage: vi.fn(),
@@ -77,6 +79,7 @@ describe('个人中心', () => {
     vi.mocked(fetchOwnGrowth).mockResolvedValue(summary)
     vi.mocked(fetchOwnProfile).mockImplementation(async (userId) => details(userId))
     vi.mocked(updateOwnBio).mockImplementation(async (userId, _token, bio) => details(userId, bio))
+    vi.mocked(requestReferralCode).mockResolvedValue(null)
     vi.mocked(fetchMyRequestPage).mockResolvedValue({
       userId: '42',
       records: [],
@@ -155,6 +158,43 @@ describe('个人中心', () => {
     await nextTick()
     return router
   }
+
+  it('从个人资料读取本人邀请码，首次生成并复制', async () => {
+    const code = 'K7M4P9TXW2C8N6RD'
+    const request = vi.mocked(requestReferralCode)
+    request.mockResolvedValueOnce(null).mockResolvedValueOnce(code)
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      await mount('/account/settings')
+      const section = host.querySelector('.account-block')!
+      await vi.waitFor(() => expect(section.textContent).toContain('生成邀请码'))
+      expect(request).toHaveBeenCalledExactlyOnceWith('read', 'session-42', expect.any(AbortSignal))
+      section.querySelector<HTMLButtonElement>('.referral-code-actions button')!.click()
+      await vi.waitFor(() => expect(section.querySelector('code')?.textContent).toBe(code))
+      expect(request).toHaveBeenLastCalledWith('generate', 'session-42', expect.any(AbortSignal))
+      section.querySelector<HTMLButtonElement>('.referral-copy')!.click()
+      await vi.waitFor(() => expect(section.textContent).toContain('邀请码已复制'))
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(code)
+    } finally {
+      if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor)
+      else Reflect.deleteProperty(navigator, 'clipboard')
+    }
+  })
+
+  it('切换账号立即清除邀请码，忽略旧账号的读取回执', async () => {
+    const request = vi.mocked(requestReferralCode)
+    let finishRead!: (value: string | null) => void
+    request.mockImplementationOnce(() => new Promise((resolve) => (finishRead = resolve)))
+    await mount('/account/settings')
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+    signIn(77, '另一位同学')
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+    finishRead('K7M4P9TXW2C8N6RD')
+    await vi.waitFor(() => expect(host.textContent).toContain('生成邀请码'))
+    expect(host.querySelector('.referral-code-actions code')).toBeNull()
+  })
 
   it('本人展示真实等级、用户名首字和四个入口，不使用虚构统计或暂缓功能', async () => {
     await mount()

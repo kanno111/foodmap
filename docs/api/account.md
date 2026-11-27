@@ -10,6 +10,9 @@
 | --- | --- | --- | --- | --- |
 | POST | `/auth/email/code/register` | 公开 | 200 | [邮箱验证码](#email-codes) |
 | POST | `/auth/email/code/password-reset` | 公开 | 200 | [邮箱验证码](#email-codes) |
+| POST | `/api/admin/invite-codes` | 管理员 | 201 | [创建校友邀请码](#invite-codes) |
+| GET | `/api/me/invite-code` | 普通账号 | 200 | [读取本人推荐码](#invite-codes) |
+| PUT | `/api/me/invite-code` | 普通账号 | 200 | [领取本人推荐码](#invite-codes) |
 | POST | `/auth/register-and-login` | 公开 | 200 | [注册](#register) |
 | POST | `/auth/register` | 公开 | 201 | [注册](#register) |
 | POST | `/auth/password-reset` | 公开 | 200 | [设置新密码](#password-reset) |
@@ -97,6 +100,18 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 <a id="registration"></a>
 
 ## 注册、验证码与密码重置
+
+<a id="invite-codes"></a>
+
+### 邀请码生成
+
+以下接口均要求有效的 Bearer 会话，成功响应带 `Cache-Control: no-store`。账号身份由会话确定。
+
+- `POST /api/admin/invite-codes` 需要 `ROLE_ADMIN`。请求示例为 `{"email":"alumnus@example.test","validDays":7}`。邮箱必填，须通过格式校验，最多 254 字符，存储时转换为小写。邮箱域名若在校园邮箱配置内，返回 400 `USER_PERSONAL_EMAIL_REQUIRED`。`validDays` 选填，范围为 1–30 天，省略或为 `null` 时采用 7 天。每次成功调用都会创建一张新码，返回 201，`data` 含 `id`（字符串）、`code`（26 字符）和 `expiresAt`（UTC 时间）。一次性码原文只在这次响应中返回。
+- `GET /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。仅查询本人已经领取的码，尚未领取时返回 200，`data` 为 `{"code":null}`。已领取时 `code` 为 16 字符。
+- `PUT /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。无需请求体，首次调用生成本人推荐码，重复或并发调用返回同一张。返回 200，`data` 含 `code`（16 字符）。推荐码长期有效。
+
+邀请码采用大写字母和数字，接口响应目前只用于领取和复制。注册核销后续接入。未登录返回 401，角色不符返回 403，参数校验失败返回 400，生成多次遇到唯一键冲突时返回 503 `USER_INVITE_CODE_UNAVAILABLE`。
 
 <a id="email-codes"></a>
 
