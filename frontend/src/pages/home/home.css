@@ -16,20 +16,31 @@
   white-space: nowrap;
 }
 .discovery-footer {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
   margin-top: 24px;
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1.5;
   color: #687583;
+  text-align: center;
 }
 .discovery-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
   color: inherit;
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .discovery-footer a:focus-visible {
   outline: 2px solid #ad6f26;
   outline-offset: 4px;
+}
+@media (pointer: coarse) {
+  .discovery-footer a {
+    min-height: 44px;
+  }
 }
 @media (max-width: 700px) {
   .discovery-page {

@@ -6,7 +6,12 @@ import { RestaurantCatalog } from '@/modules/restaurant'
   <div class="discovery-page">
     <h1 class="screen-reader-title">泥电美食地图</h1>
     <RestaurantCatalog />
-    <footer class="discovery-footer">泥电美食地图 · 校园美食评价社区</footer>
+    <footer class="discovery-footer">
+      <span>泥电美食地图 · 校园美食评价社区</span>
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+        蜀ICP备2026074867号-1
+      </a>
+    </footer>
   </div>
 </template>
 <style scoped src="./home.css"></style>
