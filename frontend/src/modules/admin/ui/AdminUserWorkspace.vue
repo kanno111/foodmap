@@ -2,9 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { authToken } from '@/shared/api/authSession'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
+import { useListRouteState } from '@/shared/lib/useListRouteState'
+import AppLink from '@/shared/ui/AppLink.vue'
 import UserAvatar from '@/modules/account/ui/UserAvatar.vue'
 import {
   ANNOUNCEMENT_RECIPIENT_LIMIT as recipientLimit,
+  manualRewardLabels,
+  normalizeAnnouncementText,
   type AnnouncementRecipient,
 } from '@/modules/announcement'
 import {
@@ -20,9 +24,10 @@ import AdminSidebar from './AdminSidebar.vue'
 defineProps<{ username: string; loggingOut: boolean; sessionError: string | null }>()
 defineEmits<{ logout: [] }>()
 
-const input = ref('')
-const keyword = ref('')
-const page = ref(1)
+const routeState = useListRouteState(() => true)
+const keyword = ref((routeState.read('keyword') ?? '').trim().slice(0, 32))
+const input = ref(keyword.value)
+const page = ref(routeState.page())
 const result = ref<AdminUserPage | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -43,6 +48,8 @@ const announcement = useAdminAnnouncements({ targetedOnly: true })
 const {
   title: announcementTitle,
   content: announcementContent,
+  rewardType,
+  rewardNote,
   recipients,
   pending: pendingAnnouncement,
   busy: sendingAnnouncement,
@@ -77,6 +84,7 @@ async function load(next = page.value) {
   const signal = request.signal
   const current = () => !signal.aborted && token === authToken.value
   page.value = next
+  void routeState.save({ keyword: keyword.value || undefined, page: next > 1 ? next : undefined })
   loading.value = true
   result.value = null
   error.value = ''
@@ -139,6 +147,8 @@ function closeAnnouncement() {
   if (!pendingAnnouncement.value) {
     announcementTitle.value = ''
     announcementContent.value = ''
+    rewardType.value = ''
+    rewardNote.value = ''
     announcementError.value = ''
     recipients.value = []
   }
@@ -256,75 +266,87 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <section class="results" aria-label="用户列表" :aria-busy="loading">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col" class="user-select">
-                  <input
-                    type="checkbox"
-                    aria-label="选择本页用户"
-                    :checked="pageFullySelected"
-                    :indeterminate.prop="selectedOnPage > 0 && !pageFullySelected"
-                    :disabled="selectionLocked || !visibleUsers.length || pageSelectionExceedsLimit"
-                    @change="selectPage(($event.target as HTMLInputElement).checked)"
-                  />
-                </th>
-                <th scope="col">用户</th>
-                <th scope="col" class="user-metric">点评数</th>
-                <th scope="col" class="user-metric user-submissions">投稿审核通过数</th>
-                <th scope="col" class="user-action">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="user in visibleUsers"
-                :key="user.id"
-                :class="{ 'recipient-selected': selectedRecipients.has(user.id) }"
-              >
-                <td class="user-select">
-                  <input
-                    type="checkbox"
-                    :aria-label="`选择 ${user.username}`"
-                    :checked="selectedRecipients.has(user.id)"
-                    :disabled="
-                      selectionLocked ||
-                      (selectedCount >= recipientLimit && !selectedRecipients.has(user.id))
-                    "
-                    @change="selectUsers([user], ($event.target as HTMLInputElement).checked)"
-                  />
-                </td>
-                <td>
-                  <div class="user">
-                    <UserAvatar
-                      :user-id="user.hasAvatar ? user.id : null"
-                      :username="user.username"
+          <div class="user-table-scroll" aria-label="用户列表表格">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" class="user-select">
+                    <input
+                      type="checkbox"
+                      aria-label="选择本页用户"
+                      :checked="pageFullySelected"
+                      :indeterminate.prop="selectedOnPage > 0 && !pageFullySelected"
+                      :disabled="
+                        selectionLocked || !visibleUsers.length || pageSelectionExceedsLimit
+                      "
+                      @change="selectPage(($event.target as HTMLInputElement).checked)"
                     />
-                    <span class="user-name">
-                      {{ user.username }}
-                      <span v-if="user.mutedAt" class="muted-badge">已禁言</span>
-                    </span>
-                  </div>
-                </td>
-                <td class="user-metric">{{ number.format(user.reviewCount) }}</td>
-                <td class="user-metric user-submissions">
-                  {{ number.format(user.approvedSubmissionCount) }}
-                </td>
-                <td class="user-action">
-                  <button
-                    v-if="user.canModerate"
-                    class="mute-action"
-                    :class="{ unmute: user.mutedAt }"
-                    type="button"
-                    :aria-label="`${user.mutedAt ? '解禁' : '禁言'} ${user.username}`"
-                    @click="confirmMute(user)"
-                  >
-                    {{ user.mutedAt ? '解禁' : '禁言' }}
-                  </button>
-                  <span v-else aria-hidden="true">—</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  </th>
+                  <th scope="col">用户</th>
+                  <th scope="col" class="user-metric">点评数</th>
+                  <th scope="col" class="user-metric user-submissions">投稿审核通过数</th>
+                  <th scope="col" class="user-metric user-invites">邀请注册数</th>
+                  <th scope="col" class="user-action">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="user in visibleUsers"
+                  :key="user.id"
+                  :class="{ 'recipient-selected': selectedRecipients.has(user.id) }"
+                >
+                  <td class="user-select">
+                    <input
+                      type="checkbox"
+                      :aria-label="`选择 ${user.username}`"
+                      :checked="selectedRecipients.has(user.id)"
+                      :disabled="
+                        selectionLocked ||
+                        (selectedCount >= recipientLimit && !selectedRecipients.has(user.id))
+                      "
+                      @change="selectUsers([user], ($event.target as HTMLInputElement).checked)"
+                    />
+                  </td>
+                  <td>
+                    <AppLink class="user" :to="`/admin/users/${user.id}`">
+                      <UserAvatar
+                        :user-id="user.hasAvatar ? user.id : null"
+                        :username="user.username"
+                      />
+                      <span class="user-name">
+                        {{ user.username }}
+                        <span v-if="user.mutedAt" class="muted-badge">已禁言</span>
+                      </span>
+                    </AppLink>
+                  </td>
+                  <td class="user-metric">{{ number.format(user.reviewCount) }}</td>
+                  <td class="user-metric user-submissions">
+                    {{ number.format(user.approvedSubmissionCount) }}
+                  </td>
+                  <td class="user-metric user-invites">
+                    {{
+                      user.invitedRegistrationCount == null
+                        ? '—'
+                        : number.format(user.invitedRegistrationCount)
+                    }}
+                  </td>
+                  <td class="user-action">
+                    <button
+                      v-if="user.canModerate"
+                      class="mute-action"
+                      :class="{ unmute: user.mutedAt }"
+                      type="button"
+                      :aria-label="`${user.mutedAt ? '解禁' : '禁言'} ${user.username}`"
+                      @click="confirmMute(user)"
+                    >
+                      {{ user.mutedAt ? '解禁' : '禁言' }}
+                    </button>
+                    <span v-else aria-hidden="true">—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p v-if="loading" class="list-state" role="status">正在查询用户…</p>
           <div v-else-if="error" class="list-state">
             <p class="alert" role="alert">{{ error }}</p>
@@ -455,6 +477,36 @@ onBeforeUnmount(() => {
             <textarea v-model="announcementContent" required :readonly="selectionLocked" />
             <small v-if="Array.from(announcementContent).length > 10000" class="alert">
               正文超过10000字
+            </small>
+          </label>
+          <label>
+            <span>奖励类型 <span class="reward-field-hint">（选填）</span></span>
+            <select v-model="rewardType" name="rewardType" :disabled="selectionLocked">
+              <option value="">不登记奖励</option>
+              <option v-for="(label, value) in manualRewardLabels" :key="value" :value="value">
+                {{ label }}
+              </option>
+            </select>
+          </label>
+          <label v-if="rewardType">
+            <span>
+              奖励说明
+              <span class="reward-field-hint">{{
+                rewardType === 'OTHER' ? '（必填）' : '（选填）'
+              }}</span>
+            </span>
+            <input
+              v-model="rewardNote"
+              name="rewardNote"
+              :required="rewardType === 'OTHER'"
+              :readonly="selectionLocked"
+              :placeholder="rewardType === 'OTHER' ? '填写奖励原因或内容' : '可填写奖励内容'"
+            />
+            <small
+              v-if="Array.from(normalizeAnnouncementText(rewardNote)).length > 300"
+              class="alert"
+            >
+              奖励说明超过300字
             </small>
           </label>
           <p v-if="announcementError" class="alert" role="alert">{{ announcementError }}</p>

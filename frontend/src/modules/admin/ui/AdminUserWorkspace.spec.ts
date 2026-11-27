@@ -12,7 +12,10 @@ import AdminUserWorkspace from './AdminUserWorkspace.vue'
 vi.mock('../api/restaurantRequestsApi', () => ({
   fetchRequestPage: vi.fn().mockResolvedValue({ counts: { PENDING: 0 } }),
 }))
-vi.mock('../api/adminUsersApi', () => ({ fetchAdminUsers: vi.fn(), setAdminUserMuted: vi.fn() }))
+vi.mock('../api/adminUsersApi', () => ({
+  fetchAdminUsers: vi.fn(),
+  setAdminUserMuted: vi.fn(),
+}))
 vi.mock('@/modules/announcement', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/modules/announcement')>()),
   fetchAdminAnnouncements: vi.fn(),
@@ -25,6 +28,7 @@ function user(id: string, username: string): AdminUser {
     username,
     reviewCount: 0,
     approvedSubmissionCount: 0,
+    invitedRegistrationCount: id === '11' ? 2 : undefined,
     hasAvatar: false,
     mutedAt: null,
     canModerate: true,
@@ -86,7 +90,15 @@ describe('用户管理发送定向公告', () => {
           component: AdminUserWorkspace,
           props: { username: '管理员', loggingOut: false, sessionError: null },
         },
-        ...['reviews', 'reports', 'restaurants', 'announcements', 'activity'].map((name) => ({
+        ...[
+          'reviews',
+          'reports',
+          'restaurants',
+          'announcements',
+          'activity',
+          'invites',
+          'users/:id',
+        ].map((name) => ({
           path: `/admin/${name}`,
           component: { template: '<div />' },
         })),
@@ -98,6 +110,19 @@ describe('用户管理发送定向公告', () => {
     await vi.waitFor(() => expect(host.querySelector('tbody')?.textContent).toContain('小林'))
     return router
   }
+
+  it('在投稿审核通过数后展示邀请注册数，并链接到用户详情', async () => {
+    const router = await mountWorkspace()
+
+    const approvedHeader = host.querySelector('thead .user-submissions')
+    expect(approvedHeader?.nextElementSibling?.textContent).toBe('邀请注册数')
+    expect(host.querySelector('tbody tr .user-invites')?.textContent?.trim()).toBe('2')
+    expect(host.querySelector('tbody tr:nth-child(2) .user-invites')?.textContent?.trim()).toBe('—')
+    const profileLink = host.querySelector<HTMLAnchorElement>('tbody tr a.user')
+    expect(profileLink).not.toBeNull()
+    profileLink?.click()
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/admin/users/11'))
+  })
 
   function fill(field: HTMLInputElement | HTMLTextAreaElement, value: string) {
     field.value = value
@@ -167,6 +192,18 @@ describe('用户管理发送定向公告', () => {
     expect(dialog.querySelector('.announcement-recipients li')?.textContent).toBe('小林')
 
     const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!
+    const rewardType = dialog.querySelector('select')!
+    rewardType.value = 'FIRST_REVIEW'
+    rewardType.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(submit.disabled).toBe(false)
+    rewardType.value = 'OTHER'
+    rewardType.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    expect(submit.disabled).toBe(true)
+    const rewardNote = dialog.querySelector<HTMLInputElement>('input[name="rewardNote"]')!
+    fill(rewardNote, '  协助活动  ')
+    await nextTick()
     submit.click()
     await vi.waitFor(() => expect(dialog.textContent).toContain('发布结果尚未确认'))
     dialog.querySelector<HTMLButtonElement>('.close-announcement')!.click()
@@ -176,11 +213,14 @@ describe('用户管理发送定向公告', () => {
 
     open()
     expect(dialog.querySelector('input')!.readOnly).toBe(true)
+    expect(rewardType.disabled).toBe(true)
+    expect(rewardNote.readOnly).toBe(true)
     submit.click()
     await vi.waitFor(() => expect(dialog.open).toBe(false))
     const attempts = vi.mocked(publishAnnouncement).mock.calls
     expect(attempts).toHaveLength(2)
     expect(attempts[0]![0].recipientUserIds).toEqual(['11'])
+    expect(attempts[0]![0].rewardRegistration).toEqual({ type: 'OTHER', note: '协助活动' })
     expect(attempts[1]![0]).toEqual(attempts[0]![0])
   })
 })

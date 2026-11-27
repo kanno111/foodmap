@@ -103,6 +103,7 @@ class AnnouncementApiIntegrationTest {
     @BeforeEach
     void setup() {
         reset(sessions, messages, announcements, streams);
+        jdbc.update("DELETE FROM user_manual_reward_records");
         jdbc.update("DELETE FROM notification_announcement_user_states");
         jdbc.update("DELETE FROM notification_announcement_recipients");
         jdbc.update("DELETE FROM notification_announcements");
@@ -865,6 +866,61 @@ class AnnouncementApiIntegrationTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content(body(uuid, title, content)));
+    }
+
+    @Test
+    void manualRewardsArePrivateAndSurviveAnnouncementWithdrawal() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        var draft = new java.util.HashMap<String, Object>(java.util.Map.of(
+                "clientRequestId", requestId.toString(), "title", "活动奖励", "content", "感谢参与",
+                "recipientUserIds", List.of("11", "22"), "rewardRegistration",
+                java.util.Map.of("type", "OTHER", "note", "  内部登记  ")));
+        var json = new tools.jackson.databind.ObjectMapper();
+        String body = json.writeValueAsString(draft);
+        String announcementId = id(sendWithReward("/api/admin/announcements/targeted", body)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rewardRegistration").doesNotExist()));
+        sendWithReward("/api/admin/announcements/targeted", body)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replayed").value(true));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_manual_reward_records", Long.class))
+                .isEqualTo(2);
+
+        draft.put("rewardRegistration", java.util.Map.of("type", "OTHER", "note", "另一个说明"));
+        sendWithReward("/api/admin/announcements/targeted", json.writeValueAsString(draft))
+                .andExpect(status().isConflict());
+        draft.put("clientRequestId", UUID.randomUUID().toString());
+        draft.put("rewardRegistration", java.util.Map.of("type", "OTHER", "note", " \t"));
+        sendWithReward("/api/admin/announcements/targeted", json.writeValueAsString(draft))
+                .andExpect(status().isBadRequest());
+        draft.put("rewardRegistration", java.util.Map.of("type", "FIRST_REVIEW"));
+        draft.remove("recipientUserIds");
+        sendWithReward("/api/admin/announcements", json.writeValueAsString(draft))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notification_announcements", Long.class))
+                .isEqualTo(1);
+
+        mvc.perform(get("/api/me/announcements/" + announcementId).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").value("感谢参与"))
+                .andExpect(jsonPath("$.data.rewardNote").doesNotExist())
+                .andExpect(jsonPath("$.data.rewardType").doesNotExist());
+        mvc.perform(get("/api/admin/users/11/rewards").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isForbidden());
+
+        withdraw(Long.parseLong(announcementId)).andExpect(status().isOk());
+        mvc.perform(get("/api/admin/users/11/rewards").header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].rewardType").value("OTHER"))
+                .andExpect(jsonPath("$.data.records[0].rewardNote").value("内部登记"))
+                .andExpect(jsonPath("$.data.records[0].sourceAnnouncementId").value(announcementId))
+                .andExpect(jsonPath("$.data.records[0].sourceAnnouncementTitle").value("活动奖励"))
+                .andExpect(jsonPath("$.data.records[0].sourceWithdrawn").value(true));
+    }
+
+    private ResultActions sendWithReward(String path, String body) throws Exception {
+        return mvc.perform(post(path).header("Authorization", "Bearer " + other)
+                .contentType("application/json").content(body));
     }
 
     private ResultActions publishTargeted(String token, UUID uuid, List<String> recipients)

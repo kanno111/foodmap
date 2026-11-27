@@ -28,6 +28,19 @@ public interface ReviewReadMapper {
             "id,author_user_id,taste_score,value_score,service_score,ambience_score,overall_score,recommendation"
                 + ",body,created_at";
 
+    @Select("""
+            SELECT r.id, r.restaurant_id, r.author_user_id, r.taste_score, r.value_score,
+                r.service_score, r.ambience_score, r.overall_score, r.recommendation, r.body, r.created_at,
+                EXISTS (SELECT 1 FROM reviews newer
+                    WHERE newer.author_user_id = r.author_user_id AND newer.restaurant_id = r.restaurant_id
+                      AND (newer.created_at > r.created_at
+                          OR (newer.created_at = r.created_at AND newer.id > r.id))) AS historical
+            FROM reviews r WHERE r.author_user_id = #{author}
+            ORDER BY r.created_at DESC, r.id DESC LIMIT #{limit} OFFSET #{offset}
+            """)
+    List<ReviewReadEntity> pageByAuthor(@Param("author") long author, @Param("limit") int limit,
+            @Param("offset") long offset);
+
     /** 作者历史与当前主卡都以同一时间/ID顺序确定最新代表。 */
     @Select(
             "SELECT "

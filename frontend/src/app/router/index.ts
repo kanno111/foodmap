@@ -54,6 +54,13 @@ const router = createRouter({
       meta: { title: '用户管理 · 管理工作台', layout: 'admin' },
     },
     {
+      path: '/admin/users/:id([1-9]\\d{0,18})',
+      name: 'admin-user-detail',
+      component: () => import('@/pages/admin/AdminUserDetailPage.vue'),
+      props: (route) => ({ userId: String(route.params.id) }),
+      meta: { title: '用户详情 · 管理工作台', layout: 'admin' },
+    },
+    {
       path: '/admin/invites',
       component: () => import('@/pages/admin/AdminInvitePage.vue'),
       meta: { title: '校友邀请 · 管理工作台', layout: 'admin' },
@@ -134,7 +141,10 @@ const router = createRouter({
     {
       path: '/account/contributions/:requestId/edit',
       component: () => import('@/modules/restaurant/ui/RestaurantCorrection.vue'),
-      props: (route) => ({ requestId: route.params.requestId, submission: true }),
+      props: (route) => ({
+        requestId: route.params.requestId,
+        submission: true,
+      }),
       meta: { title: '修改申请' },
     },
     {
@@ -212,7 +222,11 @@ const router = createRouter({
           ? '.account-center'
           : /^\/restaurants\/[1-9]\d*$/.test(to.path)
             ? '.detail-page'
-            : undefined
+            : to.path === '/admin/users'
+              ? '.user-workspace .results[aria-busy="false"]'
+              : to.name === 'admin-user-detail'
+                ? '.admin-user-detail .detail-records[aria-busy="false"]'
+                : undefined
     if (selector) {
       await nextTick()
       const canRestoreCachedCatalog =

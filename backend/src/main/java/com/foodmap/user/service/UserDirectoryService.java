@@ -1,7 +1,9 @@
 package com.foodmap.user.service;
 
 import com.foodmap.user.dto.UserDirectoryEntry;
+import com.foodmap.user.dto.UserReferralView;
 import com.foodmap.user.mapper.UserDirectoryMapper;
+import com.foodmap.user.mapper.UserInviteCodeMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -13,6 +15,28 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UserDirectoryService {
     private final UserDirectoryMapper users;
+    private final UserInviteCodeMapper invites;
+
+    public UserDirectoryEntry find(long id) {
+        return users.find(id);
+    }
+
+    public Map<Long, Long> inviteCounts(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return invites.referralCounts(ids).stream().collect(Collectors.toMap(
+                UserInviteCodeMapper.ReferralCount::userId, UserInviteCodeMapper.ReferralCount::total));
+    }
+
+    public UserReferralView.RegistrationSource registrationSource(long user) {
+        var source = invites.registrationSource(user);
+        return source == null ? new UserReferralView.RegistrationSource("DIRECT", null) : source;
+    }
+
+    public List<UserReferralView.Invitee> invitees(long user, int limit, long offset) {
+        return invites.invitees(user, limit, offset);
+    }
 
     public List<UserDirectoryEntry> list(String keyword) {
         return users.list(pattern(keyword));

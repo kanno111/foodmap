@@ -1,5 +1,7 @@
 package com.foodmap.notification.dto;
 
+import com.foodmap.user.domain.ManualRewardType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -17,4 +19,12 @@ public class AnnouncementPublishRequest {
     @NotBlank private String content;
     @Size(max = 100)
     private List<@NotBlank String> recipientUserIds;
+
+    @Valid private RewardRegistration rewardRegistration;
+
+    @Data
+    public static class RewardRegistration {
+        @NotNull private ManualRewardType type;
+        @lombok.ToString.Exclude private String note;
+    }
 }

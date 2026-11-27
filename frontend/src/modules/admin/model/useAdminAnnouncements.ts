@@ -16,6 +16,7 @@ import {
   type AnnouncementInput,
   type AnnouncementRecipient,
   type AnnouncementStatus,
+  type ManualRewardType,
 } from '@/modules/announcement'
 /** 公告发布与记录共用身份上下文；换号取消在途请求并丢弃旧账号全部草稿和回执。 */
 export function useAdminAnnouncements({ targetedOnly = false } = {}) {
@@ -38,6 +39,8 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     page = ref(1),
     pageSize = ref(10)
   const recipients = ref<AnnouncementRecipient[]>([])
+  const rewardType = ref<ManualRewardType | ''>('')
+  const rewardNote = ref('')
   let context = 0,
     version = 0,
     detailVersion = 0
@@ -45,7 +48,12 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     writeAbort: AbortController | undefined,
     detailAbort: AbortController | undefined
   const dirty = computed(
-    () => !!title.value || !!content.value || !!pending.value || recipients.value.length > 0,
+    () =>
+      !!title.value ||
+      !!content.value ||
+      !!rewardType.value ||
+      !!pending.value ||
+      recipients.value.length > 0,
   )
   const identity = () =>
     auth.isAdministrator && authToken.value && auth.user
@@ -59,7 +67,11 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
   const validForm = computed(() => {
     const a = normalizeAnnouncementText(title.value),
       b = normalizeAnnouncementText(content.value)
-    return !!a && !!b && Array.from(a).length <= 120 && Array.from(b).length <= 10000
+    const note = normalizeAnnouncementText(rewardNote.value)
+    const validReward =
+      !rewardType.value ||
+      ((rewardType.value !== 'OTHER' || !!note) && Array.from(note).length <= 300)
+    return !!a && !!b && Array.from(a).length <= 120 && Array.from(b).length <= 10000 && validReward
   })
   async function load(next = page.value) {
     const actor = identity()
@@ -94,12 +106,16 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     const actor = identity()
     if (!actor || busy.value || (!pending.value && !validForm.value)) return false
     if (targetedOnly && !(pending.value?.recipientUserIds ?? recipients.value).length) return false
+    const note = normalizeAnnouncementText(rewardNote.value)
     pending.value ??= {
       clientRequestId: createRequestId(),
       title: normalizeAnnouncementText(title.value),
       content: normalizeAnnouncementText(content.value),
       ...(recipients.value.length > 0
         ? { recipientUserIds: recipients.value.map(({ id }) => id) }
+        : {}),
+      ...(targetedOnly && rewardType.value
+        ? { rewardRegistration: { type: rewardType.value, ...(note ? { note } : {}) } }
         : {}),
     }
     busy.value = true
@@ -116,6 +132,8 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
       pending.value = null
       title.value = ''
       content.value = ''
+      rewardType.value = ''
+      rewardNote.value = ''
       recipients.value = []
       notice.value =
         receipt.status === 'WITHDRAWN' ? '已确认原公告已撤回，未重新发布。' : '公告已发布。'
@@ -198,6 +216,8 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     clearDetail()
     title.value = content.value = error.value = actionError.value = notice.value = ''
     pending.value = null
+    rewardType.value = ''
+    rewardNote.value = ''
     recipients.value = []
     result.value = null
     busy.value = loading.value = false
@@ -229,6 +249,8 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     notice,
     pending,
     recipients,
+    rewardType,
+    rewardNote,
     page,
     pageSize,
     dirty,

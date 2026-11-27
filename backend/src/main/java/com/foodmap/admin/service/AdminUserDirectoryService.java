@@ -55,16 +55,18 @@ public class AdminUserDirectoryService {
             }
         }
         ranked.sort(DIRECTORY_ORDER);
-        var records = ranked.subList((int) offset, (int) Math.min(offset + size, total)).stream()
-                .map(RankedUser::view)
+        var visible = ranked.subList((int) offset, (int) Math.min(offset + size, total));
+        var inviteCounts = users.inviteCounts(visible.stream().map(row -> row.user().getId()).toList());
+        var records = visible.stream()
+                .map(row -> row.view(inviteCounts.getOrDefault(row.user().getId(), 0L)))
                 .toList();
         return new AdminUserViews.Page(records, total, query.getPage(), size, pages);
     }
 
     private record RankedUser(UserDirectoryEntry user, long reviewCount, long approvedSubmissionCount) {
-        AdminUserViews.Item view() {
+        AdminUserViews.Item view(long invitedRegistrationCount) {
             return new AdminUserViews.Item(Long.toString(user.getId()), user.getUsername(),
-                    user.isHasAvatar(), reviewCount, approvedSubmissionCount, user.getMutedAt(),
+                    user.isHasAvatar(), reviewCount, approvedSubmissionCount, invitedRegistrationCount, user.getMutedAt(),
                     user.isCanModerate());
         }
     }

@@ -25,4 +25,5 @@ public class ReviewReadEntity {
     @lombok.ToString.Exclude private String body;
     private Instant createdAt;
     private long historyCount;
+    private boolean historical;
 }

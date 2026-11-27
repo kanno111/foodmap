@@ -3,6 +3,7 @@ package com.foodmap.user.mapper;
 import com.foodmap.user.entity.AdminInviteCodeEntity;
 import com.foodmap.user.entity.AdminInviteRecord;
 import com.foodmap.user.domain.AdminInviteStatus;
+import com.foodmap.user.dto.UserReferralView;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -15,6 +16,41 @@ import java.util.List;
 
 @Mapper
 public interface UserInviteCodeMapper {
+    record ReferralCount(long userId, long total) {}
+
+    @Select("""
+            <script>
+            SELECT c.owner_user_id AS user_id, COUNT(*) AS total
+            FROM user_invite_codes c JOIN user_invite_redemptions r ON r.invite_code_id = c.id
+            WHERE c.type = 'USER_REFERRAL' AND c.owner_user_id IN
+            <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+            GROUP BY c.owner_user_id
+            </script>
+            """)
+    List<ReferralCount> referralCounts(@Param("ids") List<Long> ids);
+
+    @Select("""
+            SELECT CASE WHEN c.type = 'USER_REFERRAL' THEN 'REFERRAL' ELSE 'ADMIN_INVITE' END AS kind,
+                u.username AS inviter_name
+            FROM user_invite_redemptions r
+            JOIN user_invite_codes c ON c.id = r.invite_code_id
+            LEFT JOIN users u ON u.id = c.owner_user_id AND u.status != 'DELETED'
+            WHERE r.invitee_user_id = #{user}
+            """)
+    UserReferralView.RegistrationSource registrationSource(long user);
+
+    @Select("""
+            SELECT u.id, CASE WHEN u.status = 'DELETED' THEN '账号已注销' ELSE u.username END AS username,
+                (u.status != 'DELETED' AND u.avatar_file_id IS NOT NULL) AS has_avatar,
+                u.created_at AS registered_at, u.status != 'DELETED' AS profile_available
+            FROM user_invite_codes c JOIN user_invite_redemptions r ON r.invite_code_id = c.id
+            JOIN users u ON u.id = r.invitee_user_id
+            WHERE c.type = 'USER_REFERRAL' AND c.owner_user_id = #{user}
+            ORDER BY r.redeemed_at DESC, r.invitee_user_id DESC LIMIT #{limit} OFFSET #{offset}
+            """)
+    List<UserReferralView.Invitee> invitees(
+            @Param("user") long user, @Param("limit") int limit, @Param("offset") long offset);
+
     String ACTIVE_ADMIN_CODE = """
             type = 'ADMIN_SINGLE_USE' AND revoked_at IS NULL AND used_at IS NULL
                 AND created_at <= CURRENT_TIMESTAMP(6) AND expires_at > CURRENT_TIMESTAMP(6)

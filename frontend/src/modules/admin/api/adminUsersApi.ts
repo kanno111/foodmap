@@ -1,5 +1,6 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { ApiResponse } from '@/shared/api/api.types'
+import type { ManualRewardType } from '@/modules/announcement'
 
 export interface AdminUser {
   id: string
@@ -7,6 +8,7 @@ export interface AdminUser {
   hasAvatar: boolean
   reviewCount: number
   approvedSubmissionCount: number
+  invitedRegistrationCount?: number
   mutedAt: string | null
   canModerate: boolean
 }
@@ -54,4 +56,103 @@ export async function fetchAdminUsers(
     signal,
   })
   return response.data.data
+}
+
+export interface AdminUserProfile extends AdminUser {
+  createdAt: string
+  status: 'ACTIVE' | 'LOCKED' | 'DISABLED'
+  registrationSource: {
+    kind: 'DIRECT' | 'REFERRAL' | 'ADMIN_INVITE'
+    inviterName: string | null
+  }
+}
+
+export interface AdminUserReview {
+  id: string
+  restaurantName: string
+  body: string
+  overallScore: number
+  recommendation: 'RECOMMENDED' | 'NEUTRAL' | 'NOT_RECOMMENDED'
+  scoringStatus: 'current' | 'history'
+  createdAt: string
+  scores: { taste: number; value: number; service: number; ambience: number }
+  photos: { id: string; url: string }[]
+}
+
+export interface AdminUserInvitee {
+  id: string
+  username: string
+  hasAvatar: boolean
+  registeredAt: string
+  profileAvailable?: boolean
+}
+
+export interface AdminUserReward {
+  id: string
+  rewardType: ManualRewardType
+  rewardNote: string | null
+  sourceAnnouncementId: string
+  sourceAnnouncementTitle: string | null
+  sourceWithdrawn: boolean
+  recordedAt: string
+}
+
+export interface AdminUserDetailPage<T> {
+  records: T[]
+  totalPages: number
+}
+
+async function readUserData<T>(
+  id: string,
+  path: string,
+  token: string,
+  signal: AbortSignal,
+  params?: { page: number; pageSize: number },
+): Promise<T> {
+  const { data } = await httpClient.get<ApiResponse<T>>(
+    `/api/admin/users/${encodeURIComponent(id)}${path}`,
+    { headers: { Authorization: `Bearer ${token}` }, signal, params },
+  )
+  if (!data.success || data.data == null) throw new Error('用户资料暂时无法读取。')
+  return data.data
+}
+
+export function fetchAdminUserProfile(id: string, token: string, signal: AbortSignal) {
+  return readUserData<AdminUserProfile>(id, '', token, signal)
+}
+
+export function fetchAdminUserReviews(
+  id: string,
+  page: number,
+  token: string,
+  signal: AbortSignal,
+) {
+  return readUserData<AdminUserDetailPage<AdminUserReview>>(id, '/reviews', token, signal, {
+    page,
+    pageSize: 10,
+  })
+}
+
+export function fetchAdminUserInvitees(
+  id: string,
+  page: number,
+  token: string,
+  signal: AbortSignal,
+) {
+  return readUserData<AdminUserDetailPage<AdminUserInvitee>>(id, '/invitees', token, signal, {
+    page,
+    pageSize: 10,
+  })
+}
+
+export function fetchAdminUserRewards(
+  id: string,
+  page: number,
+  token: string,
+  signal: AbortSignal,
+) {
+  return readUserData<AdminUserDetailPage<AdminUserReward>>(id, '/rewards', token, signal, {
+    page,
+    pageSize: 10,
+  })
 }

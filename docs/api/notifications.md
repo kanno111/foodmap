@@ -228,10 +228,13 @@ review沿用[按作者分组分页](reviews.md#review-list)的currentReview结�
 | --- | --- | --- |
 | POST | `/api/admin/announcements` | JSON包含clientRequestId（UUID）、title、content。发布给全体用户，返回Detail。 |
 | POST | `/api/admin/announcements/targeted` | 除UUID、标题和正文外，必须提供recipientUserIds数组，1～100个正Long十进制字符串。服务端去重，任一账号不可用则整笔返回400。返回Detail。 |
+
 | GET | `/api/admin/announcements/recipients` | keyword默认空，最长64个字符，按用户名子串匹配；page默认1、范围1～1000000。仅查询启用且邮箱已验证的账号。每页最多10条，返回records（每项只含id、username）和hasNext。 |
 | GET | `/api/admin/announcements` | `status` 默认 `ALL`，可选 `ALL/PUBLISHED/WITHDRAWN`。`audience` 默认 `ANY`（全部范围），可选 `ALL`（全体用户）或 `TARGETED`（指定用户）。两个筛选可同时使用。`page` 默认 1、范围 1～1000000，`pageSize` 默认 10、范围 1～50。200 返回 `records`、`total`、`page`、`pageSize`、`totalPages`。 |
 | GET | `/api/admin/announcements/{id}` | 正Long十进制ID。200返回Detail并附加 `recipients` 名单，允许核对撤回历史。 |
 | POST | `/api/admin/announcements/{id}/withdraw` | 无请求体。首次与重复撤回均200返回Detail，重复时保留首次撤回人及时间。 |
+
+指定用户公告可带 `rewardRegistration`，例如 `{"type":"OTHER","note":"协助活动，已发饮品券"}`。类型为 `FIRST_REVIEW`（首次点评）、`REGISTRATION_INVITE`（注册邀请）或 `OTHER`（其他）。说明最多 300 字，仅 `OTHER` 必填。公告、收件人和各自的奖励记录在同一事务保存。相同请求 UUID 和内容重复发送返回原公告，奖励类型或说明更改则返回 409。公告响应只包含公告信息。管理员通过[用户详情](account.md#admin-user-detail)读取内部奖励记录，撤回公告保留登记。
 
 发布请求示例：
 

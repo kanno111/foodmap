@@ -122,6 +122,9 @@ button.announcement-primary:hover:enabled {
   border-radius: 12px;
   background: var(--admin-surface);
 }
+.user-table-scroll {
+  overflow-x: auto;
+}
 table {
   width: 100%;
   table-layout: fixed;
@@ -191,6 +194,11 @@ td.user-action {
   padding-block: 8px;
   font-weight: 600;
   overflow-wrap: anywhere;
+  color: var(--admin-text);
+  text-decoration: none;
+}
+.user:hover .user-name {
+  color: var(--admin-accent-text);
 }
 .user-name {
   min-width: 0;
@@ -373,7 +381,8 @@ td.user-action {
   font-weight: 600;
 }
 .user-announcement-fields input,
-.user-announcement-fields textarea {
+.user-announcement-fields textarea,
+.user-announcement-fields select {
   box-sizing: border-box;
   width: 100%;
   padding: 9px 11px;
@@ -383,6 +392,14 @@ td.user-action {
   color: var(--admin-text);
   font: inherit;
   font-size: 14px;
+  font-weight: 400;
+}
+.user-announcement-fields select {
+  min-height: 39px;
+  font-weight: 400;
+}
+.reward-field-hint {
+  color: var(--admin-muted);
   font-weight: 400;
 }
 .user-announcement-fields textarea {
@@ -459,11 +476,14 @@ td.user-action {
   .user-select {
     width: 28px;
   }
+  .user-table-scroll table {
+    min-width: 490px;
+  }
   .user-metric {
-    width: 17%;
+    width: 15%;
   }
   .user-submissions {
-    width: 24%;
+    width: 20%;
   }
   th.user-action,
   td.user-action {
