@@ -22,13 +22,14 @@ export const useRegistrationStore = defineStore('registration', () => {
   let sendGeneration = 0
 
   /** 发送验证码并用布尔值告知表单是否可以启动倒计时。 */
-  async function sendCode(email: string): Promise<boolean> {
+  async function sendCode(email: string, inviteCode?: string): Promise<boolean> {
     if (sendingCode.value || registering.value || registered.value) return false
     const generation = ++sendGeneration
     sendingCode.value = true
     sendError.value = null
     try {
-      await sendRegistrationCode(email)
+      if (inviteCode) await sendRegistrationCode(email, inviteCode)
+      else await sendRegistrationCode(email)
       return generation === sendGeneration
     } catch (reason) {
       if (generation === sendGeneration) sendError.value = toErrorMessage(reason)

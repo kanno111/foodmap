@@ -20,8 +20,8 @@ export async function resetPassword(request: PasswordResetRequest): Promise<{ us
 }
 
 /** 请求发送注册验证码；是否允许发送及频率限制最终由服务端决定。 */
-export async function sendRegistrationCode(email: string): Promise<void> {
-  await httpClient.post<ApiResponse<null>>('/auth/email/code/register', { email })
+export async function sendRegistrationCode(email: string, inviteCode?: string): Promise<void> {
+  await httpClient.post<ApiResponse<null>>('/auth/email/code/register', { email, inviteCode })
 }
 
 /** 邮箱验证注册并建立登录会话，返回现有登录响应结构。 */

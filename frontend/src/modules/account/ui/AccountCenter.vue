@@ -21,6 +21,7 @@ import { useReturnNavigation } from '@/shared/lib/useReturnNavigation'
 import WriteReviewLink from '@/shared/ui/WriteReviewLink.vue'
 import UserAvatar from './UserAvatar.vue'
 import AvatarSetting from './AvatarSetting.vue'
+import ReferralCodeSetting from './ReferralCodeSetting.vue'
 
 /** 个人中心只接入已存在的身份与成长接口；未开放能力不保存本地假资料或虚构统计。 */
 const props = defineProps<{ section?: string; publicUserId?: string }>()
@@ -381,6 +382,9 @@ const pending = computed(() => pendingSections[props.section ?? ''])
             <button class="inline-link" @click="profileState.refresh">重新加载资料</button>
           </div>
           <p v-if="bioNotice" class="profile-save-notice" role="status">{{ bioNotice }}</p>
+          <ReferralCodeSetting
+            v-if="ownProfile && auth.user?.roles.includes('ROLE_USER') && !auth.isAdministrator"
+          />
         </section>
         <section class="account-block">
           <h2>隐私设置</h2>

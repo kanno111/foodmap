@@ -34,6 +34,7 @@ const items = [
   { name: '举报处理', path: '/admin/reports', icon: 'report' },
   { name: '商户管理', path: '/admin/restaurants', icon: 'shop' },
   { name: '用户管理', path: '/admin/users', icon: 'users' },
+  { name: '校友邀请', path: '/admin/invites', icon: 'invite' },
   { name: '公告管理', path: '/admin/announcements', icon: 'announcement' },
   { name: '使用统计', path: '/admin/activity', icon: 'activity' },
 ]
@@ -94,6 +95,10 @@ watch(
           />
         </template>
         <path v-else-if="item.icon === 'activity'" d="M4 3v17h17M8 15v-4M13 15V6M18 15V9" />
+        <path
+          v-else-if="item.icon === 'invite'"
+          d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6Zm9 2v2m0 2v2m0 2v1"
+        />
         <path
           v-else-if="item.icon === 'shop'"
           d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10c0 4 5 4 5 0 0 4 8 4 8 0 0 4 5 4 5 0M9 20v-6h6v6"

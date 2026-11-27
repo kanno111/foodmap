@@ -10,7 +10,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.foodmap.security.service.LoginProtectionService;
 import com.foodmap.user.domain.VerificationCodePurpose;
 import com.foodmap.user.dto.VerificationCodeReservation;
+import com.foodmap.user.dto.AdminInviteCreateRequest;
+import com.foodmap.user.service.UserInviteCodeService;
 import com.foodmap.user.service.VerificationCodeService;
+import com.foodmap.user.vo.UserInviteViews;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -66,6 +69,7 @@ class RegistrationApiIntegrationTest {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @Autowired private VerificationCodeService verificationCodeService;
+    @Autowired private UserInviteCodeService invitations;
 
     @Autowired private StringRedisTemplate redisTemplate;
 
@@ -104,7 +108,8 @@ class RegistrationApiIntegrationTest {
         registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
         registry.add("spring.flyway.enabled", () -> true);
         registry.add("spring.data.redis.host", () -> "127.0.0.1");
-        registry.add("spring.data.redis.port", () -> 6379);
+        registry.add("spring.data.redis.port", () -> Integer.parseInt(
+                System.getenv().getOrDefault("AUTH_TEST_REDIS_PORT", "6379")));
         registry.add("spring.data.redis.password", () -> "");
         registry.add("spring.data.redis.database", () -> 4);
         registry.add("app.user.verification-code.key-prefix", () -> REDIS_PREFIX);
@@ -442,6 +447,117 @@ class RegistrationApiIntegrationTest {
                         passwordEncoder.matches("FirstPassword2026", hash)
                                 ^ passwordEncoder.matches("SecondPassword2026", hash))
                 .isTrue();
+    }
+
+    @Test
+    void registersAlumnusThenAllowsFullEmailLogin() throws Exception {
+        String email = "alumnus-invite@example.com";
+        var invite = issueAlumniCode(email, "invite_issuer");
+        String code = activeCode(email);
+        postInvitedRegistration("someone-else@example.com", "invalid_invitee", code, invite.getCode())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_INVITE_CODE_INVALID"));
+        String wrongCode = code.equals("000000") ? "000001" : "000000";
+        postInvitedRegistration(email, "invited_alumnus", wrongCode, invite.getCode())
+                .andExpect(status().isBadRequest());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT used_at IS NULL FROM user_invite_codes WHERE id = ?", Boolean.class, invite.getId())).isTrue();
+        postInvitedRegistration(email, "invited_alumnus", code, invite.getCode())
+                .andExpect(status().isCreated());
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_invite_redemptions AS r
+                JOIN users AS u ON u.id = r.invitee_user_id
+                JOIN user_invite_codes AS c ON c.id = r.invite_code_id
+                WHERE u.email = ? AND u.email_verified AND c.id = ? AND c.used_at IS NOT NULL
+                """, Integer.class, email, invite.getId())).isEqualTo(1);
+        postInvitedRegistration(email, "another_alumnus", code, invite.getCode())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_INVITE_CODE_INVALID"));
+        loginToken(email);
+    }
+
+    @Test
+    void resetsPasswordForAnAccountWithAPersonalEmail() throws Exception {
+        String email = "alumnus-reset@example.com";
+        createResetAccount(email, "alumnus_reset");
+        String oldToken = loginToken(email);
+        String resetCode = activeCode(VerificationCodePurpose.PASSWORD_RESET, email);
+        postPasswordReset(email, resetCode, "NewPassword2026").andExpect(status().isOk());
+        mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + oldToken))
+                .andExpect(status().isUnauthorized());
+        loginToken(email, "NewPassword2026");
+    }
+
+    @Test
+    void registersWithAnUnboundCodeAndRecordsTheActualAccount() throws Exception {
+        var invite = issueAlumniCode(null, "unbound_issuer");
+        String email = "unbound-alumnus@example.com";
+        postInvitedRegistration(email, "unbound_alumnus", activeCode(email), invite.getCode())
+                .andExpect(status().isCreated());
+        assertThat(invitations.listAdminCodes(com.foodmap.user.domain.AdminInviteStatus.USED, 1).records())
+                .anySatisfy(record -> {
+                    assertThat(record.getId()).isEqualTo(invite.getId());
+                    assertThat(record.getBoundEmail()).isNull();
+                    assertThat(record.getRegisteredUsername()).isEqualTo("unbound_alumnus");
+                });
+        postInvitedRegistration("second-unbound@example.com", "unbound_retry", "000000", invite.getCode())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_INVITE_CODE_INVALID"));
+    }
+
+    @Test
+    void studentsCanRegisterWithTheSameReferralCode() throws Exception {
+        String owner = "referral-owner@std.uestc.edu.cn";
+        createResetAccount(owner, "referral_owner");
+        Long ownerId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, owner);
+        String referral = invitations.getOrCreateReferralCode(ownerId).getCode();
+        for (int i = 1; i <= 2; i++) {
+            String email = "referral-" + i + "@std.uestc.edu.cn";
+            postInvitedRegistration(email, "student_referral_" + i, activeCode(email), referral)
+                    .andExpect(status().isCreated());
+        }
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_invite_redemptions AS r
+                JOIN user_invite_codes AS c ON c.id = r.invite_code_id
+                WHERE c.owner_user_id = ? AND c.used_at IS NULL
+                """, Integer.class, ownerId)).isEqualTo(2);
+    }
+
+    @Test
+    void rollsBackAccountAndAlumniCodeWhenWritingTheRedemptionFails() throws Exception {
+        String email = "alumnus-rollback@example.com";
+        var invite = issueAlumniCode(email, "rollback_issuer");
+        String code = activeCode(email);
+        jdbcTemplate.execute("""
+                CREATE TRIGGER fixture_reject_redemption BEFORE INSERT ON user_invite_redemptions
+                FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'fixture failure'
+                """);
+        try {
+            postInvitedRegistration(email, "rollback_alumnus", code, invite.getCode())
+                    .andExpect(status().is5xxServerError());
+            assertUserAbsent(email);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT used_at IS NULL FROM user_invite_codes WHERE id = ?", Boolean.class, invite.getId())).isTrue();
+        } finally {
+            jdbcTemplate.execute("DROP TRIGGER fixture_reject_redemption");
+        }
+    }
+
+    private UserInviteViews.AdminCode issueAlumniCode(String email, String issuer) {
+        String issuerEmail = issuer + "@std.uestc.edu.cn";
+        createResetAccount(issuerEmail, issuer);
+        Long issuerId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, issuerEmail);
+        var request = new AdminInviteCreateRequest();
+        request.setEmail(email);
+        return invitations.createAdminCode(issuerId, request);
+    }
+
+    private ResultActions postInvitedRegistration(String email, String username, String code, String invite)
+            throws Exception {
+        return mockMvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(java.util.Map.of(
+                        "email", email, "username", username, "verificationCode", code,
+                        "password", "Foodmap2026", "inviteCode", invite))));
     }
 
     /** 直接建立受控测试账号，避免注册发码冷却影响后续重置发码，不修改任何验证码限制。 */

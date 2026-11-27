@@ -54,6 +54,11 @@ const router = createRouter({
       meta: { title: '用户管理 · 管理工作台', layout: 'admin' },
     },
     {
+      path: '/admin/invites',
+      component: () => import('@/pages/admin/AdminInvitePage.vue'),
+      meta: { title: '校友邀请 · 管理工作台', layout: 'admin' },
+    },
+    {
       path: '/admin/restaurants',
       component: () => import('@/pages/admin/AdminRestaurantPage.vue'),
       meta: { title: '商户管理 · 管理工作台', layout: 'admin' },

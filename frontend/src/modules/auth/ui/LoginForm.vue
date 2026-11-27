@@ -7,7 +7,7 @@ import './auth-inputs.css'
 import { useLoginStore } from '../model/login.store'
 import { consumeResetLogin } from '../model/loginPrefill'
 import { loginRedirect } from '../model/loginRedirect'
-import { campusEmail, CAMPUS_EMAIL_SUFFIX } from '../model/campusEmail'
+import { CAMPUS_EMAIL_SUFFIX, useAccountEmail } from '../model/campusEmail'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,13 +15,24 @@ const auth = useLoginStore()
 const resetUsername = consumeResetLogin()
 const modes = [
   { key: 'username', label: '用户名登录' },
-  { key: 'student', label: '学号登录' },
+  { key: 'email', label: '邮箱登录' },
 ] as const
-const mode = ref<'username' | 'student'>('username')
-const form = reactive({ username: resetUsername ?? '', student: '', password: '' })
+const mode = ref<'username' | 'email'>('username')
+const form = reactive({ username: resetUsername ?? '', password: '' })
+const email = useAccountEmail()
+const { full: fullEmail, input: emailInput } = email
+const accountInput = computed({
+  get: () => (mode.value === 'email' ? emailInput.value : form.username),
+  set: (value: string) => {
+    if (mode.value === 'email') emailInput.value = value
+    else form.username = value
+  },
+})
 const errors = reactive({ username: '', password: '' })
 const disabled = computed(() => auth.loggingIn || auth.restoring)
-const accountLabel = computed(() => (mode.value === 'student' ? '学号' : '用户名'))
+const accountLabel = computed(() =>
+  mode.value === 'username' ? '用户名' : fullEmail.value ? '邮箱' : '学号',
+)
 const tabs = ref<globalThis.HTMLDivElement>()
 let active = true
 
@@ -30,17 +41,19 @@ function checkField(field: 'username' | 'password') {
     errors.password = form.password ? '' : '请输入密码'
     return
   }
-  const value = form[mode.value].trim()
+  const value = accountInput.value.trim()
   errors.username = !value
     ? `请输入${accountLabel.value}`
-    : mode.value === 'student' && !/^[0-9]+$/.test(value)
-      ? '学号仅支持数字，请勿输入邮箱后缀'
-      : mode.value === 'username' && value.includes('@')
-        ? '请输入用户名，使用学号请切换至学号登录'
+    : mode.value === 'email'
+      ? !fullEmail.value && !/^[0-9]+$/.test(value)
+        ? '请输入数字学号，或切换为完整邮箱'
+        : (email.error() ?? '')
+      : value.includes('@')
+        ? '请输入用户名，使用邮箱请切换至邮箱登录'
         : ''
 }
 
-function changeMode(next: 'username' | 'student') {
+function changeMode(next: 'username' | 'email') {
   if (disabled.value || mode.value === next) return
   mode.value = next
   form.password = ''
@@ -56,9 +69,9 @@ async function navigateTabs(event: globalThis.KeyboardEvent) {
     event.key === 'Home'
       ? 'username'
       : event.key === 'End'
-        ? 'student'
+        ? 'email'
         : mode.value === 'username'
-          ? 'student'
+          ? 'email'
           : 'username'
   changeMode(next)
   await nextTick()
@@ -69,6 +82,11 @@ function clearField(field: 'username' | 'password') {
   errors[field] = ''
   auth.clearError()
 }
+
+function toggleEmail() {
+  email.toggle()
+  clearField('username')
+}
 auth.clearError()
 
 /** 密码只留在表单内，完成提交或离开页面后清除，绝不规范化密码中的空格。 */
@@ -78,7 +96,7 @@ async function handleSubmit() {
   checkField('username')
   checkField('password')
   if (errors.username || errors.password) return
-  const username = mode.value === 'student' ? campusEmail(form.student) : form.username.trim()
+  const username = mode.value === 'email' ? email.address.value : form.username.trim()
   const success = await auth.submit({ username, password: form.password })
   form.password = ''
   if (success && active) {
@@ -127,20 +145,26 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div id="login-account-panel" role="tabpanel" :aria-labelledby="`login-tab-${mode}`">
-        <div :class="{ 'email-input': mode === 'student' }">
+        <div v-if="mode === 'email'" class="auth-email-heading">
+          <label for="login-username">{{ fullEmail ? '邮箱' : '学号' }}</label>
+          <button class="auth-email-toggle" type="button" :disabled="disabled" @click="toggleEmail">
+            {{ fullEmail ? '使用学校邮箱后缀' : '使用完整邮箱' }}
+          </button>
+        </div>
+        <div :class="{ 'email-input': mode === 'email' && !fullEmail }">
           <input
             id="login-username"
-            v-model="form[mode]"
+            v-model="accountInput"
             :aria-label="accountLabel"
             autocomplete="username"
-            :inputmode="mode === 'student' ? 'numeric' : 'text'"
-            :maxlength="mode === 'student' ? 64 : 254"
+            :inputmode="mode === 'email' ? (fullEmail ? 'email' : 'numeric') : 'text'"
+            :maxlength="mode === 'email' && !fullEmail ? 64 : 254"
             autocapitalize="none"
             :spellcheck="false"
             :aria-invalid="!!errors.username"
             :aria-describedby="
               [
-                mode === 'student' ? 'login-email-suffix' : '',
+                mode === 'email' && !fullEmail ? 'login-email-suffix' : '',
                 errors.username ? 'login-username-error' : '',
               ]
                 .filter(Boolean)
@@ -150,7 +174,9 @@ onBeforeUnmount(() => {
             @blur="checkField('username')"
             @input="clearField('username')"
           />
-          <span v-if="mode === 'student'" id="login-email-suffix">{{ CAMPUS_EMAIL_SUFFIX }}</span>
+          <span v-if="mode === 'email' && !fullEmail" id="login-email-suffix">{{
+            CAMPUS_EMAIL_SUFFIX
+          }}</span>
         </div>
         <p v-if="errors.username" id="login-username-error" class="field-error" role="alert">
           {{ errors.username }}
@@ -182,7 +208,7 @@ onBeforeUnmount(() => {
     <button class="primary-action" type="submit" :disabled="auth.loggingIn || auth.restoring">
       {{ auth.loggingIn ? '正在登录…' : '登录' }}
     </button>
-    <p class="form-footnote">还没有账号？<AppLink to="/register">使用校园邮箱注册</AppLink></p>
+    <p class="form-footnote">还没有账号？<AppLink to="/register">创建账号</AppLink></p>
   </form>
 </template>
 

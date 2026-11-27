@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
 
 /**
- * 完成校园用户注册的应用服务。
+ * 完成校园用户与受邀校友注册的应用服务。
  *
  * <p>该服务负责协调输入策略、Redis 验证码、BCrypt 和三个用户持久化 Mapper。Controller 不参与
  * 注册决策，Entity 也不会暴露到接口层。数据库唯一约束负责处理并发注册的最终冲突。</p>
@@ -40,6 +40,7 @@ public class UserRegistrationService {
     private final UserRegistrationPolicy registrationPolicy;
     private final PasswordEncoder passwordEncoder;
     private final ActivityContributionService activity;
+    private final UserInviteCodeService invites;
 
     /**
      * 创建已验证邮箱的普通用户，但不建立登录会话。
@@ -54,7 +55,8 @@ public class UserRegistrationService {
     @Transactional
     public void register(RegisterRequest request) {
         Objects.requireNonNull(request, "request must not be null");
-        String email = registrationPolicy.normalizeCampusEmail(request.getEmail());
+        var invitation = invites.validateRegistration(request.getEmail(), request.getInviteCode());
+        String email = invitation.email();
         String username = registrationPolicy.normalizeUsername(request.getUsername());
         registrationPolicy.validatePassword(request.getPassword());
 
@@ -75,6 +77,7 @@ public class UserRegistrationService {
         );
 
         String passwordHash = passwordEncoder.encode(request.getPassword());
+        invites.consumeForRegistration(invitation);
         UserEntity user = UserEntity.registerVerified(username, email, passwordHash);
         try {
             if (userMapper.insert(user) != 1 || user.getId() == null) {
@@ -88,6 +91,7 @@ public class UserRegistrationService {
         if (userRoleMapper.insert(UserRoleEntity.assign(user.getId(), defaultRole.getId())) != 1) {
             throw new IllegalStateException("Default user role assignment failed");
         }
+        invites.recordRegistration(user.getId(), invitation);
         activity.registered();
     }
 }

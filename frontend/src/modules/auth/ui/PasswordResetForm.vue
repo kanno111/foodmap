@@ -5,16 +5,18 @@ import { useRouter } from 'vue-router'
 import { clearAccessToken, getAccessToken } from '@/shared/api/authSession'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
 import { resetPassword, sendPasswordResetCode } from '../api/authApi'
-import { passwordError, emailError, codeError, accountErrorField } from '../model/accountValidation'
+import { passwordError, codeError, accountErrorField } from '../model/accountValidation'
 import PasswordInput from './PasswordInput.vue'
 import './auth-inputs.css'
 import { prepareResetLogin } from '../model/loginPrefill'
-import { campusEmail, CAMPUS_EMAIL_SUFFIX } from '../model/campusEmail'
+import { CAMPUS_EMAIL_SUFFIX, useAccountEmail } from '../model/campusEmail'
 
 // 取消入口由页面按会话选择；这里只影响返回链接，重置成功仍清理旧凭证并转往登录页。
 withDefaults(defineProps<{ returnTo?: '/account/settings' | '/login' }>(), { returnTo: '/login' })
 
-const form = reactive({ email: '', verificationCode: '', newPassword: '', confirmPassword: '' })
+const form = reactive({ verificationCode: '', newPassword: '', confirmPassword: '' })
+const email = useAccountEmail()
+const { full: fullEmail, input: emailInput, address } = email
 const router = useRouter()
 const sendingCode = ref(false)
 const submitting = ref(false)
@@ -28,7 +30,7 @@ function fieldError(field: string) {
   return errors[field] || (remoteField.value === field ? error.value : null)
 }
 function checkField(field: string) {
-  if (field === 'email') errors.email = emailError(campusEmail(form.email))
+  if (field === 'email') errors.email = email.error()
   if (field === 'code') errors.code = codeError(form.verificationCode)
   if (field === 'password') errors.password = passwordError(form.newPassword)
   if (field === 'confirm')
@@ -41,12 +43,21 @@ function clearField(field: string) {
   errors[field] = null
   error.value = null
   if (field === 'email') {
+    form.verificationCode = ''
+    errors.code = null
     codeAccepted.value = false
     sendError.value = null
   }
   if (field === 'password' && form.confirmPassword) {
     errors.confirm = form.confirmPassword === form.newPassword ? null : '两次输入的新密码不一致'
   }
+}
+
+function toggleEmail() {
+  const previous = address.value
+  email.toggle()
+  errors.email = null
+  if (previous !== address.value) clearField('email')
 }
 const cooldown = ref(0)
 const busy = computed(() => sendingCode.value || submitting.value)
@@ -69,12 +80,11 @@ async function handleSendCode() {
   error.value = null
   sendError.value = null
   codeAccepted.value = false
-  const email = campusEmail(form.email)
   checkField('email')
   if (errors.email) return
   sendingCode.value = true
   try {
-    await sendPasswordResetCode(email)
+    await sendPasswordResetCode(address.value)
     if (active) {
       codeAccepted.value = true
       startCooldown()
@@ -96,7 +106,7 @@ async function handleSubmit() {
   const previousToken = getAccessToken()
   try {
     const result = await resetPassword({
-      email: campusEmail(form.email),
+      email: address.value,
       verificationCode: form.verificationCode,
       newPassword: form.newPassword,
     })
@@ -137,30 +147,42 @@ onBeforeUnmount(() => {
   >
     <p class="eyebrow">RESET PASSWORD</p>
     <h1 id="password-reset-title">找回密码</h1>
-    <p class="form-intro">通过账号绑定的学生邮箱验证身份，设置新的登录密码。</p>
+    <p class="form-intro">验证账号绑定的邮箱后，即可重置密码。</p>
 
     <fieldset :disabled="busy || completed">
       <legend class="sr-only">邮箱验证与新密码</legend>
       <div class="form-field">
-        <label for="reset-email">学生邮箱</label>
+        <div class="auth-email-heading">
+          <label for="reset-email">绑定邮箱</label>
+          <button class="auth-email-toggle" type="button" @click="toggleEmail">
+            {{ fullEmail ? '使用学校邮箱后缀' : '使用完整邮箱' }}
+          </button>
+        </div>
         <div class="field-with-action">
-          <div class="email-input">
+          <div :class="{ 'email-input': !fullEmail }">
             <input
               id="reset-email"
-              v-model="form.email"
+              v-model="emailInput"
               name="email"
               type="text"
               autocomplete="off"
+              :inputmode="fullEmail ? 'email' : 'text'"
+              :maxlength="fullEmail ? 254 : 64"
               autocapitalize="none"
               :spellcheck="false"
               :aria-invalid="!!fieldError('email')"
               :aria-describedby="
-                fieldError('email') ? 'reset-email-suffix reset-email-error' : 'reset-email-suffix'
+                [
+                  fullEmail ? '' : 'reset-email-suffix',
+                  fieldError('email') ? 'reset-email-error' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
               "
               @blur="checkField('email')"
               @input="clearField('email')"
             />
-            <span id="reset-email-suffix">{{ CAMPUS_EMAIL_SUFFIX }}</span>
+            <span v-if="!fullEmail" id="reset-email-suffix">{{ CAMPUS_EMAIL_SUFFIX }}</span>
           </div>
           <button
             class="code-button"

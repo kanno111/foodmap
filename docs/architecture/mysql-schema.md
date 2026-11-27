@@ -1,12 +1,13 @@
 # MySQL 表结构
 
-本文集中维护 MySQL 业务表的当前字段、类型、默认值、枚举、主键、索引、外键与字段约束。覆盖当前V53定义的32张应用表；V53调整长期口碑分，V52扩展管理员照片来源，V51移除窗口体系。按下列分组查阅；Flyway自建的迁移历史表不属于应用表。
+本文集中维护 MySQL 业务表的当前字段、类型、默认值、枚举、主键、索引、外键与字段约束。覆盖截至 V58 的 35 张应用表。V58 允许一次性校友码不绑定邮箱，V57 更新用户邮箱字段注释，V56 新增注册邀请码及使用记录。按下列分组查阅，Flyway 自建的迁移历史表不计入应用表。
 
 ## 目录
 
 - [应用元数据表结构](#app-metadata)
 - [使用统计日汇总表结构](#activity-statistics)
 - [用户账号、角色与安全审计表结构](#user-profile)
+- [注册邀请码表结构](#user-invites)
 - [餐厅与食堂表结构](#restaurant-schema)
 - [店铺收藏表结构](#restaurant-favorites)
 - [餐厅榜单快照表结构](#restaurant-ranking-snapshots)
@@ -74,7 +75,7 @@ user模块拥有`users`、`roles`、`user_roles`和`security_audit_events`，分
 | --- | --- | --- | --- |
 | `id` | `bigint unsigned` | 否 | 自增主键，用户ID。 |
 | `username` | `varchar(32)` | 否 | 全局唯一用户名，区分大小写。 |
-| `email` | `varchar(254)` | 否 | 全局唯一邮箱。 |
+| `email` | `varchar(254)` | 否 | 全局唯一的规范化绑定邮箱，支持校园邮箱及获邀校友个人邮箱。V57 更新邮箱及验证时间等字段的注释。 |
 | `password_hash` | `varchar(255)` | 否 | BCrypt密码哈希。 |
 | `email_verified` | `tinyint(1)` | 否 | 默认0；邮箱是否已验证。 |
 | `email_verified_at` | `timestamp(6)` | 是 | 默认NULL；邮箱验证完成时间。 |
@@ -145,6 +146,52 @@ user模块拥有`users`、`roles`、`user_roles`和`security_audit_events`，分
 | idx_security_audit_type_created | `(event_type,created_at)` | 普通索引 |
 
 CHECK约束`chk_security_audit_outcome`限定outcome为SUCCESS或FAILURE，按列的utf8mb4_0900_ai_ci排序规则比较；未额外要求大小写精确匹配。外键`fk_security_audit_user`：user_id → users.id，ON DELETE SET NULL，ON UPDATE RESTRICT（未显式声明，MySQL默认行为）。三个摘要列使用ASCII字符集及ascii_bin排序规则，数据库未额外校验其是否为十六进制摘要。
+
+<a id="user-invites"></a>
+
+## 注册邀请码表结构
+
+V56 为 `user` 模块新增两张 InnoDB 表，默认字符集为 utf8mb4，排序规则为 utf8mb4_0900_ai_ci。迁移只创建空表，既有用户数据和邮箱约束沿用原结构。
+
+### `user_invite_codes` 邀请码
+
+| 字段 | 类型 | 可空 | 默认值及含义 |
+| --- | --- | --- | --- |
+| `id` | `bigint unsigned` | 否 | 自增主键。 |
+| `type` | `varchar(20)`，ascii_bin | 否 | `ADMIN_SINGLE_USE` 为管理员一次性码，`USER_REFERRAL` 为用户长期推荐码。 |
+| `code_hash` | `binary(32)` | 否 | 邀请码摘要，用于查找及唯一校验。 |
+| `public_code` | `varchar(64)`，ascii_bin | 是 | 默认 NULL。用户长期码保存可复制的原文，管理员码留空。 |
+| `issued_by_admin_id` | `bigint unsigned` | 是 | 默认 NULL。管理员码的发码人。 |
+| `owner_user_id` | `bigint unsigned` | 是 | 默认 NULL。用户长期码的归属人。 |
+| `bound_email` | `varchar(254)` | 是 | 默认 NULL。V58 起，管理员码可留空。已有定向码保存其绑定的规范化个人邮箱。 |
+| `created_at` | `timestamp(6)` | 否 | 默认 CURRENT_TIMESTAMP(6)。 |
+| `expires_at` | `timestamp(6)` | 是 | 默认 NULL。管理员码到期时间，发码时填写。 |
+| `revoked_at` | `timestamp(6)` | 是 | 默认 NULL。管理员码撤销时间。 |
+| `used_at` | `timestamp(6)` | 是 | 默认 NULL。管理员码在注册事务中核销的时间。 |
+
+| 名称 | 列 | 类型 |
+| --- | --- | --- |
+| PRIMARY | `(id)` | 主键 |
+| uk_user_invite_codes_hash | `(code_hash)` | 唯一索引 |
+| uk_user_invite_codes_owner | `(owner_user_id)` | 唯一索引，非空归属人最多有一张长期码 |
+| idx_user_invite_codes_issuer | `(issued_by_admin_id)` | 普通索引 |
+
+`fk_user_invite_codes_issuer` 和 `fk_user_invite_codes_owner` 分别将发码人、归属人关联到 `users.id`。两条外键的删除和更新规则均为 RESTRICT。
+
+- V58 用 `chk_user_invite_codes_allowed_fields` 替换原类型约束。管理员码必须有发码人和截止时间，邮箱允许 NULL，非空值须含非空格字符，原文和归属人留空。用户长期码必须有归属人和非空白原文，发码人、邮箱、到期、撤销及核销时间均留空。
+- `chk_user_invite_codes_lifecycle` 要求到期晚于创建，撤销及核销均不能早于创建，核销须早于到期。撤销与核销互斥。管理员码状态由这几个时间字段计算。
+
+### `user_invite_redemptions` 邀请码使用记录
+
+| 字段 | 类型 | 可空 | 默认值及含义 |
+| --- | --- | --- | --- |
+| `invitee_user_id` | `bigint unsigned` | 否 | 主键。使用邀请码成功注册的用户 ID，每个账号最多一条。 |
+| `invite_code_id` | `bigint unsigned` | 否 | 使用的邀请码 ID。 |
+| `redeemed_at` | `timestamp(6)` | 否 | 默认 CURRENT_TIMESTAMP(6)。成功使用的时间。 |
+
+索引 `idx_user_invite_redemptions_code_time(invite_code_id, redeemed_at, invitee_user_id)` 支持按码和时间查询。外键 `fk_user_invite_redemptions_invitee` 关联 `users.id`，`fk_user_invite_redemptions_code` 关联 `user_invite_codes.id`。两条外键的删除和更新规则均为 RESTRICT。用户推荐归属通过码的 `owner_user_id` 查询。
+
+管理员发码权限由服务端校验。发码、核销、撤销使用 MySQL 时钟。一次性码通过注册事务内的条件更新核销，要求仍有效、未撤销及未使用。已绑定邮箱的码须精确匹配该地址，未绑定的码使用申请人验证过的个人邮箱。账号与使用记录随事务提交。长期码每次成功注册追加一条记录。邀请码状态及使用记录存于 MySQL，Redis 原子校验邮箱发送额度及校友码发送额度。
 
 <a id="restaurant-schema"></a>
 

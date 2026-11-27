@@ -4,11 +4,13 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import PasswordInput from './PasswordInput.vue'
+import RegistrationInviteField from './RegistrationInviteField.vue'
 import './auth-inputs.css'
 import {
   usernameError,
   passwordError,
   emailError,
+  fullEmailError,
   codeError,
   accountErrorField,
 } from '../model/accountValidation'
@@ -23,18 +25,42 @@ const router = useRouter()
 registrationStore.reset()
 const form = reactive({
   email: '',
+  inviteCode: '',
   verificationCode: '',
   username: '',
   password: '',
   confirmPassword: '',
 })
+const alumni = ref(false)
+const busy = computed(
+  () =>
+    registrationStore.sendingCode || registrationStore.registering || registrationStore.registered,
+)
+const email = computed(() =>
+  alumni.value ? form.email.trim().toLowerCase() : completeCampusEmail(form.email),
+)
+const inviteCode = computed(() => form.inviteCode.trim().toUpperCase())
 const errors = reactive<Record<string, string | null>>({})
 const remoteField = computed(() => accountErrorField(registrationStore.error))
 function fieldError(field: string) {
   return errors[field] || (remoteField.value === field ? registrationStore.error : null)
 }
 function checkField(field: string) {
-  if (field === 'email') errors.email = emailError(campusEmail.value)
+  if (field === 'email') {
+    errors.email = alumni.value
+      ? fullEmailError(email.value) || (!emailError(email.value) ? '请输入个人邮箱' : null)
+      : emailError(email.value)
+  }
+  if (field === 'invite') {
+    const code = inviteCode.value
+    errors.invite = alumni.value
+      ? /^[0-9A-HJKMNP-TV-Z]{26}$/.test(code)
+        ? null
+        : '请输入管理员发给你的校友邀请码'
+      : !code || /^[0-9A-HJKMNP-TV-Z]{16}$/.test(code)
+        ? null
+        : '请输入有效的好友邀请码'
+  }
   if (field === 'code') errors.code = codeError(form.verificationCode)
   if (field === 'username') errors.username = usernameError(form.username)
   if (field === 'password') errors.password = passwordError(form.password)
@@ -45,17 +71,35 @@ function checkField(field: string) {
 function clearField(field: string) {
   errors[field] = null
   registrationStore.clearError()
-  if (field === 'email') registrationStore.sendError = null
+  if (field === 'email' || (field === 'invite' && alumni.value)) {
+    registrationStore.sendError = null
+    form.verificationCode = ''
+    errors.code = null
+  }
   if (field === 'password' && form.confirmPassword) {
     errors.confirm = form.confirmPassword === form.password ? null : '两次输入的密码不一致'
   }
+}
+
+function changeRegistration(next: boolean) {
+  if (busy.value || alumni.value === next) return
+  alumni.value = next
+  form.email = ''
+  form.inviteCode = ''
+  form.verificationCode = ''
+  errors.email = null
+  errors.invite = null
+  errors.code = null
+  registrationStore.sendError = null
+  registrationStore.clearError()
+  globalThis.clearInterval(cooldownTimer)
+  cooldownTimer = undefined
+  cooldown.value = 0
 }
 const cooldown = ref(0)
 let active = true
 let cooldownTimer: ReturnType<typeof globalThis.setInterval> | undefined
 
-// 后缀固定展示与拼接，用户仅输入邮箱前缀，完整邮箱仍由服务端校验。
-const campusEmail = computed(() => completeCampusEmail(form.email))
 const feedback = computed(() => (remoteField.value ? null : registrationStore.error))
 const codeButtonText = computed(() => {
   if (registrationStore.sendingCode) return '正在发送…'
@@ -75,31 +119,31 @@ function startCooldown() {
 }
 
 async function handleSendCode() {
-  if (cooldown.value > 0) return
+  if (busy.value || cooldown.value > 0) return
   registrationStore.sendError = null
   registrationStore.clearError()
-  const normalizedEmail = campusEmail.value.toLowerCase()
   checkField('email')
-  if (errors.email) return
+  if (alumni.value) checkField('invite')
+  if (errors.email || (alumni.value && errors.invite)) return
 
-  if ((await registrationStore.sendCode(normalizedEmail)) && active) {
+  if (
+    (await registrationStore.sendCode(email.value, alumni.value ? inviteCode.value : undefined)) &&
+    active
+  ) {
     startCooldown()
   }
 }
 
 async function handleSubmit() {
-  if (
-    registrationStore.sendingCode ||
-    registrationStore.registering ||
-    registrationStore.registered
-  )
-    return
+  if (busy.value) return
   registrationStore.clearError()
-  for (const field of ['email', 'code', 'username', 'password', 'confirm']) checkField(field)
+  for (const field of ['email', 'invite', 'code', 'username', 'password', 'confirm'])
+    checkField(field)
   if (Object.values(errors).some(Boolean)) return
 
   const success = await registrationStore.submit({
-    email: campusEmail.value.toLowerCase(),
+    email: email.value,
+    inviteCode: inviteCode.value || undefined,
     verificationCode: form.verificationCode,
     username: form.username.trim(),
     password: form.password,
@@ -107,6 +151,7 @@ async function handleSubmit() {
   if (success) {
     // 请求完成后立即清除页面中的敏感字段；账号信息保留用于确认用户刚刚注册的身份。
     form.verificationCode = ''
+    form.inviteCode = ''
     form.password = ''
     form.confirmPassword = ''
     await router.replace('/')
@@ -126,26 +171,59 @@ onBeforeUnmount(() => {
       <h1>加入我们</h1>
     </div>
 
+    <div class="registration-modes" role="group" aria-label="注册方式">
+      <button
+        type="button"
+        :aria-pressed="!alumni"
+        :disabled="busy"
+        @click="changeRegistration(false)"
+      >
+        学生注册
+      </button>
+      <button
+        type="button"
+        :aria-pressed="alumni"
+        :disabled="busy"
+        @click="changeRegistration(true)"
+      >
+        校友注册
+      </button>
+    </div>
+
+    <RegistrationInviteField
+      v-if="alumni"
+      v-model="form.inviteCode"
+      alumni
+      :disabled="busy"
+      :error="fieldError('invite')"
+      @blur="checkField('invite')"
+      @update:model-value="clearField('invite')"
+    />
+
     <div class="form-field">
-      <label for="register-email">学生邮箱</label>
+      <label for="register-email">{{ alumni ? '个人邮箱' : '学生邮箱' }}</label>
       <div class="field-with-action">
-        <div class="email-input">
+        <div :class="{ 'email-input': !alumni }">
           <input
             id="register-email"
             v-model="form.email"
             type="text"
-            autocomplete="off"
+            :autocomplete="alumni ? 'email' : 'off'"
+            :inputmode="alumni ? 'email' : 'text'"
+            :maxlength="alumni ? 254 : 64"
             autocapitalize="none"
             spellcheck="false"
-            :disabled="registrationStore.sendingCode || registrationStore.registered"
+            :disabled="busy"
             :aria-invalid="!!fieldError('email')"
             :aria-describedby="
-              fieldError('email') ? 'email-suffix register-email-error' : 'email-suffix'
+              [alumni ? '' : 'email-suffix', fieldError('email') ? 'register-email-error' : '']
+                .filter(Boolean)
+                .join(' ') || undefined
             "
             @blur="checkField('email')"
             @input="clearField('email')"
           />
-          <span id="email-suffix">{{ CAMPUS_EMAIL_SUFFIX }}</span>
+          <span v-if="!alumni" id="email-suffix">{{ CAMPUS_EMAIL_SUFFIX }}</span>
         </div>
         <button
           class="code-button"
@@ -175,7 +253,13 @@ onBeforeUnmount(() => {
         <span aria-hidden="true">!</span>
         {{ registrationStore.sendError }}
       </p>
-      <small v-else>验证码5分钟内有效，同一邮箱60秒内只能发送一次。</small>
+      <small v-else>
+        {{
+          alumni
+            ? '请填写可接收验证码的个人邮箱。'
+            : '验证码5分钟内有效，同一邮箱60秒内只能发送一次。'
+        }}
+      </small>
     </div>
 
     <div class="form-field">
@@ -198,6 +282,15 @@ onBeforeUnmount(() => {
         {{ fieldError('code') }}
       </p>
     </div>
+
+    <RegistrationInviteField
+      v-if="!alumni"
+      v-model="form.inviteCode"
+      :disabled="busy"
+      :error="fieldError('invite')"
+      @blur="checkField('invite')"
+      @update:model-value="clearField('invite')"
+    />
 
     <div class="form-field">
       <label for="register-username">用户名</label>
@@ -314,6 +407,31 @@ onBeforeUnmount(() => {
 
 .form-field {
   margin-top: 24px;
+}
+
+.registration-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #e1e1dc;
+  border-radius: 14px;
+  background: #f7f7f5;
+}
+
+.registration-modes button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  color: #514a3e;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.registration-modes button[aria-pressed='true'] {
+  border-color: #ca9d4e;
+  color: #714a0e;
+  background: #fff4db;
 }
 
 .form-field label {

@@ -65,7 +65,7 @@ class PasswordResetServiceTest {
         assertThat(request().toString()).doesNotContain("012345", "NewPassword2026");
     }
 
-    /** 校园域名与密码强度均在服务端检查，失败不消费验证码或读取账号。 */
+    /** 邮箱格式与密码强度均在服务端检查，失败不消费验证码或读取账号。 */
     @Test
     void shouldRejectInvalidInputBeforeConsumingCode() {
         PasswordResetRequest weak = request();
@@ -74,10 +74,10 @@ class PasswordResetServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class,
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(UserErrorCode.PASSWORD_WEAK));
         PasswordResetRequest outsider = request();
-        outsider.setEmail("student@example.com");
+        outsider.setEmail("student@@example.com");
         assertThatThrownBy(() -> service.resetPassword(outsider))
                 .isInstanceOfSatisfying(BusinessException.class,
-                        failure -> assertThat(failure.getErrorCode()).isEqualTo(UserErrorCode.CAMPUS_EMAIL_REQUIRED));
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(UserErrorCode.EMAIL_INVALID));
         verifyNoInteractions(codes, users, passwords);
     }
 
