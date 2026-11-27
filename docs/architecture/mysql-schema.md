@@ -1,6 +1,6 @@
 # MySQL 表结构
 
-本文集中维护 MySQL 业务表的当前字段、类型、默认值、枚举、主键、索引、外键与字段约束。覆盖截至 V57 的 35 张应用表。V57 更新用户邮箱字段注释，V56 新增注册邀请码及使用记录，V55 增加用户禁言时间。按下列分组查阅，Flyway 自建的迁移历史表不计入应用表。
+本文集中维护 MySQL 业务表的当前字段、类型、默认值、枚举、主键、索引、外键与字段约束。覆盖截至 V58 的 35 张应用表。V58 允许一次性校友码不绑定邮箱，V57 更新用户邮箱字段注释，V56 新增注册邀请码及使用记录。按下列分组查阅，Flyway 自建的迁移历史表不计入应用表。
 
 ## 目录
 
@@ -163,7 +163,7 @@ V56 为 `user` 模块新增两张 InnoDB 表，默认字符集为 utf8mb4，排�
 | `public_code` | `varchar(64)`，ascii_bin | 是 | 默认 NULL。用户长期码保存可复制的原文，管理员码留空。 |
 | `issued_by_admin_id` | `bigint unsigned` | 是 | 默认 NULL。管理员码的发码人。 |
 | `owner_user_id` | `bigint unsigned` | 是 | 默认 NULL。用户长期码的归属人。 |
-| `bound_email` | `varchar(254)` | 是 | 默认 NULL。管理员码绑定的规范化个人邮箱。 |
+| `bound_email` | `varchar(254)` | 是 | 默认 NULL。V58 起，管理员码可留空。已有定向码保存其绑定的规范化个人邮箱。 |
 | `created_at` | `timestamp(6)` | 否 | 默认 CURRENT_TIMESTAMP(6)。 |
 | `expires_at` | `timestamp(6)` | 是 | 默认 NULL。管理员码到期时间，发码时填写。 |
 | `revoked_at` | `timestamp(6)` | 是 | 默认 NULL。管理员码撤销时间。 |
@@ -178,7 +178,7 @@ V56 为 `user` 模块新增两张 InnoDB 表，默认字符集为 utf8mb4，排�
 
 `fk_user_invite_codes_issuer` 和 `fk_user_invite_codes_owner` 分别将发码人、归属人关联到 `users.id`。两条外键的删除和更新规则均为 RESTRICT。
 
-- `chk_user_invite_codes_type_fields` 按字节匹配类型。管理员码必须填写发码人、非空白邮箱和截止时间，原文和归属人留空。用户长期码必须有归属人和非空白原文，发码人、邮箱、到期、撤销及核销时间均留空。
+- V58 用 `chk_user_invite_codes_allowed_fields` 替换原类型约束。管理员码必须有发码人和截止时间，邮箱允许 NULL，非空值须含非空格字符，原文和归属人留空。用户长期码必须有归属人和非空白原文，发码人、邮箱、到期、撤销及核销时间均留空。
 - `chk_user_invite_codes_lifecycle` 要求到期晚于创建，撤销及核销均不能早于创建，核销须早于到期。撤销与核销互斥。管理员码状态由这几个时间字段计算。
 
 ### `user_invite_redemptions` 邀请码使用记录
@@ -191,7 +191,7 @@ V56 为 `user` 模块新增两张 InnoDB 表，默认字符集为 utf8mb4，排�
 
 索引 `idx_user_invite_redemptions_code_time(invite_code_id, redeemed_at, invitee_user_id)` 支持按码和时间查询。外键 `fk_user_invite_redemptions_invitee` 关联 `users.id`，`fk_user_invite_redemptions_code` 关联 `user_invite_codes.id`。两条外键的删除和更新规则均为 RESTRICT。用户推荐归属通过码的 `owner_user_id` 查询。
 
-管理员发码权限和邮箱匹配由服务端校验。发码及核销使用 MySQL 时钟。一次性码通过注册事务内的条件更新核销，条件包括绑定邮箱精确匹配、未撤销、未使用及仍有效，账号与使用记录随事务提交。长期码每次成功注册追加一条记录。邀请码状态及使用记录存于 MySQL，邮件验证码继续由现有 Redis 流程处理。
+管理员发码权限由服务端校验。发码、核销、撤销使用 MySQL 时钟。一次性码通过注册事务内的条件更新核销，要求仍有效、未撤销及未使用。已绑定邮箱的码须精确匹配该地址，未绑定的码使用申请人验证过的个人邮箱。账号与使用记录随事务提交。长期码每次成功注册追加一条记录。邀请码状态及使用记录存于 MySQL，Redis 原子校验邮箱发送额度及校友码发送额度。
 
 <a id="restaurant-schema"></a>
 

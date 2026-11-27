@@ -26,11 +26,16 @@ public class EmailCodeService {
 
     /** 发送注册验证码；已注册邮箱返回明确冲突，最终注册仍依赖数据库唯一约束。 */
     public void sendRegistrationCode(String email, String inviteCode) {
-        String normalizedEmail = invites.validateRegistration(email, inviteCode).email();
+        var invitation = invites.validateRegistration(email, inviteCode);
+        String normalizedEmail = invitation.email();
         if (userMapper.existsByEmail(normalizedEmail)) {
             throw new BusinessException(UserErrorCode.EMAIL_ALREADY_REGISTERED);
         }
-        verificationCodeService.send(VerificationCodePurpose.REGISTER, normalizedEmail);
+        if (invitation.adminCode()) {
+            verificationCodeService.sendRegistrationForInvite(normalizedEmail, invitation.codeId());
+        } else {
+            verificationCodeService.send(VerificationCodePurpose.REGISTER, normalizedEmail);
+        }
     }
 
     /**

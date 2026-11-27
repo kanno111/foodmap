@@ -19,6 +19,7 @@ import com.foodmap.security.authentication.SessionJwtAuthenticationConverter;
 import com.foodmap.security.config.SecurityConfiguration;
 import com.foodmap.security.service.CurrentActorService;
 import com.foodmap.user.controller.UserInviteCodeController;
+import com.foodmap.user.domain.AdminInviteStatus;
 import com.foodmap.user.service.UserInviteCodeService;
 import com.foodmap.user.vo.UserInviteViews;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.time.Instant;
+import java.util.List;
 
 @WebMvcTest(UserInviteCodeController.class)
 @Import({SecurityConfiguration.class, CurrentActorService.class, UserInviteCodeControllerTest.WebSecurity.class})
@@ -63,6 +65,9 @@ class UserInviteCodeControllerTest {
                 .andExpect(status().isForbidden());
         mvc.perform(get(REFERRAL_ENDPOINT).with(actor("11", "ROLE_ADMIN")))
                 .andExpect(status().isForbidden());
+        mvc.perform(get(ADMIN_ENDPOINT).with(actor("22", "ROLE_USER"))).andExpect(status().isForbidden());
+        mvc.perform(put(ADMIN_ENDPOINT + "/101/revocation").with(actor("22", "ROLE_USER")))
+                .andExpect(status().isForbidden());
         verifyNoInteractions(invites);
     }
 
@@ -81,9 +86,24 @@ class UserInviteCodeControllerTest {
         when(invites.createAdminCode(eq(11L), any())).thenReturn(
                 new UserInviteViews.AdminCode("101", "ADMINCODE", Instant.parse("2026-12-04T08:00:00Z")));
         mvc.perform(post(ADMIN_ENDPOINT).with(actor("11", "ROLE_ADMIN")).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"alumnus@example.test\"}"))
+                        .content("{\"validDays\":7}"))
                 .andExpect(status().isCreated()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.data.id").value("101")).andExpect(jsonPath("$.data.code").value("ADMINCODE"));
+    }
+
+    @Test
+    void administratorCanReadStatusAndRevokeAnInvite() throws Exception {
+        var record = new UserInviteViews.AdminRecord("101", null, "alumnus", AdminInviteStatus.USED,
+                Instant.EPOCH, Instant.EPOCH.plusSeconds(7));
+        when(invites.listAdminCodes(AdminInviteStatus.USED, 1))
+                .thenReturn(new UserInviteViews.AdminPage(List.of(record), false));
+        mvc.perform(get(ADMIN_ENDPOINT).with(actor("11", "ROLE_ADMIN")).param("status", "USED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].registeredUsername").value("alumnus"))
+                .andExpect(jsonPath("$.data.records[0].code").doesNotExist());
+        mvc.perform(put(ADMIN_ENDPOINT + "/101/revocation").with(actor("11", "ROLE_ADMIN")))
+                .andExpect(status().isOk());
+        verify(invites).revokeAdminCode(101L);
     }
 
     @Test

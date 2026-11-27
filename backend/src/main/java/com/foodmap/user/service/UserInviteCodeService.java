@@ -1,7 +1,9 @@
 package com.foodmap.user.service;
 
 import com.foodmap.common.exception.BusinessException;
+import com.foodmap.user.domain.AdminInviteStatus;
 import com.foodmap.user.dto.AdminInviteCreateRequest;
+import com.foodmap.user.dto.AdminInviteQuery;
 import com.foodmap.user.entity.AdminInviteCodeEntity;
 import com.foodmap.user.exception.UserErrorCode;
 import com.foodmap.user.mapper.UserInviteCodeMapper;
@@ -24,6 +26,7 @@ import java.util.regex.Pattern;
 public class UserInviteCodeService {
     private static final int DEFAULT_VALID_DAYS = 7;
     private static final int MAX_ATTEMPTS = 3;
+    private static final int PAGE_SIZE = 20;
     private static final Pattern REGISTRATION_CODE = Pattern.compile("[0-9A-HJKMNP-TV-Z]{16}|[0-9A-HJKMNP-TV-Z]{26}");
 
     private final UserInviteCodeMapper invites;
@@ -34,7 +37,9 @@ public class UserInviteCodeService {
     public UserInviteViews.AdminCode createAdminCode(long adminId, AdminInviteCreateRequest request) {
         AdminInviteCodeEntity invite = new AdminInviteCodeEntity();
         invite.setIssuedByAdminId(adminId);
-        invite.setBoundEmail(registrationPolicy.normalizePersonalEmail(request.getEmail()));
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            invite.setBoundEmail(registrationPolicy.normalizePersonalEmail(request.getEmail()));
+        }
         invite.setValidDays(Objects.requireNonNullElse(request.getValidDays(), DEFAULT_VALID_DAYS));
 
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -45,13 +50,38 @@ public class UserInviteCodeService {
                     throw new IllegalStateException("Invite insert did not return a generated identifier");
                 }
                 // 发码和核销共用数据库时钟，响应转换使用时间戳以避开 JDBC 会话时区差异。
-                Instant expiry = Instant.EPOCH.plus(invites.findAdminExpiryMicros(invite.getId()), ChronoUnit.MICROS);
+                Instant expiry = fromMicros(invites.findAdminExpiryMicros(invite.getId()));
                 return new UserInviteViews.AdminCode(invite.getId().toString(), code, expiry);
             } catch (DuplicateKeyException collision) {
                 // 管理员码没有归属人，唯一键冲突时重新生成随机码。
             }
         }
         throw new BusinessException(UserErrorCode.INVITE_CODE_UNAVAILABLE);
+    }
+
+    public UserInviteViews.AdminPage listAdminCodes(AdminInviteStatus status, int page) {
+        var rows = invites.pageAdminCodes(status, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
+        var records = rows.stream().limit(PAGE_SIZE)
+                .map(row -> new UserInviteViews.AdminRecord(
+                        Long.toString(row.getId()), row.getBoundEmail(), row.getRegisteredUsername(), row.getStatus(),
+                        fromMicros(row.getCreatedMicros()), fromMicros(row.getExpiryMicros())))
+                .toList();
+        return new UserInviteViews.AdminPage(records, page < AdminInviteQuery.MAX_PAGE && rows.size() > PAGE_SIZE);
+    }
+
+    public void revokeAdminCode(long id) {
+        if (invites.revokeAdminCode(id) == 1) {
+            return;
+        }
+        var status = invites.findAdminStatus(id)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.INVITE_NOT_FOUND));
+        if (status != AdminInviteStatus.REVOKED) {
+            throw new BusinessException(UserErrorCode.INVITE_NOT_REVOCABLE);
+        }
+    }
+
+    private static Instant fromMicros(long micros) {
+        return Instant.EPOCH.plus(micros, ChronoUnit.MICROS);
     }
 
     public UserInviteViews.ReferralCode getReferralCode(long userId) {

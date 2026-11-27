@@ -489,6 +489,23 @@ class RegistrationApiIntegrationTest {
     }
 
     @Test
+    void registersWithAnUnboundCodeAndRecordsTheActualAccount() throws Exception {
+        var invite = issueAlumniCode(null, "unbound_issuer");
+        String email = "unbound-alumnus@example.com";
+        postInvitedRegistration(email, "unbound_alumnus", activeCode(email), invite.getCode())
+                .andExpect(status().isCreated());
+        assertThat(invitations.listAdminCodes(com.foodmap.user.domain.AdminInviteStatus.USED, 1).records())
+                .anySatisfy(record -> {
+                    assertThat(record.getId()).isEqualTo(invite.getId());
+                    assertThat(record.getBoundEmail()).isNull();
+                    assertThat(record.getRegisteredUsername()).isEqualTo("unbound_alumnus");
+                });
+        postInvitedRegistration("second-unbound@example.com", "unbound_retry", "000000", invite.getCode())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_INVITE_CODE_INVALID"));
+    }
+
+    @Test
     void studentsCanRegisterWithTheSameReferralCode() throws Exception {
         String owner = "referral-owner@std.uestc.edu.cn";
         createResetAccount(owner, "referral_owner");

@@ -20,6 +20,7 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -58,7 +59,15 @@ public class VerificationCodeService {
      * @param email    收件邮箱
      */
     public void send(VerificationCodePurpose purpose, String email) {
-        VerificationCodeReservation reservation = reserve(purpose, email);
+        send(purpose, email, null);
+    }
+
+    void sendRegistrationForInvite(String email, long inviteId) {
+        send(VerificationCodePurpose.REGISTER, email, inviteId);
+    }
+
+    private void send(VerificationCodePurpose purpose, String email, Long inviteId) {
+        VerificationCodeReservation reservation = reserve(purpose, email, inviteId);
         try {
             mailSender.send(reservation);
         } catch (BusinessException exception) {
@@ -81,6 +90,10 @@ public class VerificationCodeService {
      * @return 含明文验证码的短生命周期预留对象，禁止记录日志
      */
     public VerificationCodeReservation reserve(VerificationCodePurpose purpose, String email) {
+        return reserve(purpose, email, null);
+    }
+
+    VerificationCodeReservation reserve(VerificationCodePurpose purpose, String email, Long inviteId) {
         Objects.requireNonNull(purpose, "purpose must not be null");
         String normalizedEmail = normalizeEmail(email);
         String emailId = identifier("email", normalizedEmail);
@@ -88,14 +101,14 @@ public class VerificationCodeService {
         String reservationId = UUID.randomUUID().toString();
         String digest = codeDigest(purpose, normalizedEmail, code);
 
+        List<String> keys = new ArrayList<>(List.of(
+                codeKey(purpose, emailId), cooldownKey(emailId), emailHourlyKey(emailId), emailDailyKey(emailId)));
+        if (inviteId != null) {
+            // 使用已验证的内部记录 ID，同一码的不同写法和收件邮箱共用配额。
+            keys.add(properties.getKeyPrefix() + ":limit:invite:day:" + identifier("invite", inviteId.toString()));
+        }
         Long result = execute(
-                scripts.getReserve(),
-                List.of(
-                        codeKey(purpose, emailId),
-                        cooldownKey(emailId),
-                        emailHourlyKey(emailId),
-                        emailDailyKey(emailId)
-                ),
+                scripts.getReserve(), keys,
                 digest,
                 reservationId,
                 millis(properties.getTimeToLive()),
@@ -103,7 +116,8 @@ public class VerificationCodeService {
                 Integer.toString(properties.getEmailHourlyLimit()),
                 Integer.toString(properties.getEmailDailyLimit()),
                 millis(HOURLY_WINDOW),
-                millis(DAILY_WINDOW)
+                millis(DAILY_WINDOW),
+                Integer.toString(properties.getInviteDailyLimit())
         );
         throwIfReservationRejected(result);
         return new VerificationCodeReservation(purpose, normalizedEmail, code, reservationId);
@@ -200,6 +214,7 @@ public class VerificationCodeService {
             }
             case -1 -> throw new BusinessException(VerificationCodeErrorCode.RESEND_COOLDOWN);
             case -2, -3 -> throw new BusinessException(VerificationCodeErrorCode.EMAIL_RATE_LIMITED);
+            case -4 -> throw new BusinessException(VerificationCodeErrorCode.INVITE_RATE_LIMITED);
             default -> throw new BusinessException(VerificationCodeErrorCode.SERVICE_UNAVAILABLE);
         }
     }

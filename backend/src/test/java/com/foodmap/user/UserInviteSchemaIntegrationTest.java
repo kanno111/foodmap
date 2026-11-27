@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.foodmap.common.exception.BusinessException;
 import com.foodmap.user.config.UserRegistrationProperties;
+import com.foodmap.user.domain.AdminInviteStatus;
 import com.foodmap.user.dto.AdminInviteCreateRequest;
 import com.foodmap.user.exception.UserErrorCode;
 import com.foodmap.user.mapper.UserInviteCodeMapper;
@@ -44,11 +45,12 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** 在显式指定的回环服务器上，用随机隔离库验证 V55 到 V56 的升级及表约束。 */
+/** 在显式指定的回环服务器上，用随机隔离库验证 V55 到 V58 的升级及表约束。 */
 @EnabledIfSystemProperty(named = "invites.integration", matches = "true")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class UserInviteSchemaIntegrationTest {
     private static final String MIGRATION = "db/migration/V56__create_user_invites.sql";
+    private static final String UNBOUND_MIGRATION = "db/migration/V58__allow_unbound_alumni_invites.sql";
     private String database;
     private boolean created;
     private DriverManagerDataSource dataSource;
@@ -89,6 +91,16 @@ class UserInviteSchemaIntegrationTest {
         usersBefore = db.queryForList("SELECT * FROM users ORDER BY id");
         rolesBefore = db.queryForList("SELECT * FROM user_roles ORDER BY user_id, role_id");
         migrationsExecuted = flyway("56").migrate().migrationsExecuted;
+        addAdmin(100, "legacy-bound-code");
+        redeem(33, 100);
+        db.update("UPDATE user_invite_codes SET used_at=created_at WHERE id=100");
+        String legacyQuery = "SELECT id, bound_email, HEX(code_hash), used_at FROM user_invite_codes WHERE id=100";
+        var legacyCode = db.queryForMap(legacyQuery);
+        var legacyRedemption = db.queryForMap("SELECT * FROM user_invite_redemptions WHERE invitee_user_id=33");
+        assertThat(flyway("58").migrate().migrationsExecuted).isEqualTo(2);
+        assertThat(db.queryForMap(legacyQuery)).isEqualTo(legacyCode);
+        assertThat(db.queryForMap("SELECT * FROM user_invite_redemptions WHERE invitee_user_id=33"))
+                .isEqualTo(legacyRedemption);
     }
 
     @BeforeEach
@@ -125,7 +137,8 @@ class UserInviteSchemaIntegrationTest {
         redeem(33, 1);
         var record = db.queryForMap("SELECT * FROM user_invite_redemptions WHERE invitee_user_id=33");
         new ResourceDatabasePopulator(new ClassPathResource(MIGRATION)).execute(dataSource);
-        assertThat(flyway("56").migrate().migrationsExecuted).isZero();
+        new ResourceDatabasePopulator(new ClassPathResource(UNBOUND_MIGRATION)).execute(dataSource);
+        assertThat(flyway("58").migrate().migrationsExecuted).isZero();
         assertThat(db.queryForMap("SELECT * FROM user_invite_redemptions WHERE invitee_user_id=33"))
                 .isEqualTo(record);
     }
@@ -153,13 +166,13 @@ class UserInviteSchemaIntegrationTest {
         addReferral(3, "fixture-referral", 22);
         for (String assignment : List.of(
                 "type='ADMIN_SINGLE_USE '", "public_code='visible'", "issued_by_admin_id=NULL",
-                "owner_user_id=33", "bound_email=NULL", "bound_email='   '", "expires_at=NULL")) {
-            rejectsUpdate(1, assignment, "chk_user_invite_codes_type_fields");
+                "owner_user_id=33", "bound_email='   '", "expires_at=NULL")) {
+            rejectsUpdate(1, assignment, "chk_user_invite_codes_allowed_fields");
         }
         for (String assignment : List.of(
                 "owner_user_id=NULL", "public_code='   '", "expires_at=created_at+INTERVAL 1 DAY",
                 "used_at=created_at", "revoked_at=created_at")) {
-            rejectsUpdate(3, assignment, "chk_user_invite_codes_type_fields");
+            rejectsUpdate(3, assignment, "chk_user_invite_codes_allowed_fields");
         }
         for (String assignment : List.of(
                 "expires_at=created_at", "used_at=expires_at", "revoked_at=created_at-INTERVAL 1 SECOND",
@@ -170,6 +183,48 @@ class UserInviteSchemaIntegrationTest {
                 .isEqualTo(1);
         assertThat(db.update("UPDATE user_invite_codes SET revoked_at=created_at WHERE id=2"))
                 .isEqualTo(1);
+    }
+
+    @Test
+    void unboundInviteCanBeUsedByOnlyOneConcurrentApplicantAndCannotBeRevokedAfterward()
+            throws Exception {
+        var generator = new UserInviteCodeGenerator();
+        var service = inviteService(generator);
+        var issued = service.createAdminCode(11, new AdminInviteCreateRequest());
+        long id = Long.parseLong(issued.getId());
+        byte[] digest = generator.hash(issued.getCode());
+        assertThat(inviteMapper.findActiveAdminId(digest, "first@example.test")).contains(id);
+        assertThat(inviteMapper.findActiveAdminId(digest, "second@example.test")).contains(id);
+        var barrier = new CyclicBarrier(2);
+        try (var requests = Executors.newFixedThreadPool(2)) {
+            var first = requests.submit(() -> {
+                barrier.await(5, TimeUnit.SECONDS);
+                return inviteMapper.consumeAdminCode(id, "first@example.test");
+            });
+            var second = requests.submit(() -> {
+                barrier.await(5, TimeUnit.SECONDS);
+                return inviteMapper.consumeAdminCode(id, "second@example.test");
+            });
+            assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(1, 0);
+        }
+        redeem(33, id);
+        assertThat(service.listAdminCodes(AdminInviteStatus.USED, 1).records())
+                .singleElement().satisfies(record -> {
+                    assertThat(record.getBoundEmail()).isNull();
+                    assertThat(record.getRegisteredUsername()).isEqualTo("new_student");
+                });
+        assertThatThrownBy(() -> service.revokeAdminCode(id))
+                .isInstanceOfSatisfying(BusinessException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(UserErrorCode.INVITE_NOT_REVOCABLE));
+
+        var unused = service.createAdminCode(11, new AdminInviteCreateRequest());
+        long unusedId = Long.parseLong(unused.getId());
+        service.revokeAdminCode(unusedId);
+        service.revokeAdminCode(unusedId);
+        assertThat(inviteMapper.findActiveAdminId(generator.hash(unused.getCode()), "any@example.test")).isEmpty();
+        assertThat(service.listAdminCodes(AdminInviteStatus.REVOKED, 1).records())
+                .singleElement().satisfies(record -> assertThat(record.getId()).isEqualTo(unused.getId()));
     }
 
     @Test

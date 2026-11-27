@@ -49,7 +49,8 @@ class VerificationCodeServiceRedisIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        RedisStandaloneConfiguration redisConfiguration = new RedisStandaloneConfiguration("localhost", 6379);
+        int port = Integer.parseInt(System.getenv().getOrDefault("AUTH_TEST_REDIS_PORT", "6379"));
+        RedisStandaloneConfiguration redisConfiguration = new RedisStandaloneConfiguration("127.0.0.1", port);
         redisConfiguration.setDatabase(4);
         connectionFactory = new LettuceConnectionFactory(redisConfiguration);
         connectionFactory.afterPropertiesSet();
@@ -70,6 +71,21 @@ class VerificationCodeServiceRedisIntegrationTest {
                 ),
                 new com.foodmap.user.mail.VerificationMailSender(org.mockito.Mockito.mock(JavaMailSender.class), properties, mailProperties())
         );
+    }
+
+    @Test
+    void sharesInviteQuotaAcrossRecipientsWithoutChargingRejectedEmail() {
+        for (int number = 1; number <= 5; number++) {
+            service.reserve(VerificationCodePurpose.REGISTER, "alumnus" + number + "@example.test", 71L);
+        }
+        String next = "alumnus6@example.test";
+        assertThatThrownBy(() -> service.reserve(VerificationCodePurpose.REGISTER, next, 71L))
+                .isInstanceOfSatisfying(BusinessException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(VerificationCodeErrorCode.INVITE_RATE_LIMITED));
+        assertThat(service.reserve(VerificationCodePurpose.REGISTER, next, 72L).getRecipientEmail())
+                .isEqualTo(next);
+        assertThat(service.reserve(VerificationCodePurpose.REGISTER, "student@std.uestc.edu.cn").getCode())
+                .matches("\\d{6}");
     }
 
     @AfterEach

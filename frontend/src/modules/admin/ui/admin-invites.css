@@ -1,0 +1,234 @@
+.invite-workspace {
+  min-height: 100vh;
+  color: var(--admin-text);
+  background: var(--admin-canvas);
+}
+.invite-shell {
+  display: grid;
+  grid-template-columns: var(--admin-sidebar-width) minmax(0, 1fr);
+  min-height: calc(100vh - var(--admin-header-height));
+}
+.invite-shell main {
+  min-width: 0;
+  padding: 28px clamp(16px, 4vw, 44px) 48px;
+}
+.invite-heading,
+.invite-filter,
+.invite-pages,
+.invite-dialog footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.invite-heading {
+  justify-content: space-between;
+}
+h1,
+h2 {
+  margin: 0;
+}
+h1 {
+  font-size: 27px;
+}
+h2 {
+  font-size: 21px;
+}
+button,
+select,
+.invite-days input {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--admin-border);
+  border-radius: 7px;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  font: inherit;
+}
+button:not(:disabled) {
+  cursor: pointer;
+}
+button.primary {
+  border-color: var(--admin-primary);
+  color: #fff;
+  background: var(--admin-primary);
+}
+.invite-filter {
+  margin: 24px 0 12px;
+  color: var(--admin-secondary);
+}
+.invite-records {
+  min-height: 130px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: var(--admin-surface);
+}
+.invite-table-scroll {
+  overflow-x: auto;
+  border-radius: inherit;
+}
+table {
+  width: 100%;
+  min-width: 675px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+th,
+td {
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--admin-divider);
+  overflow-wrap: anywhere;
+}
+thead {
+  color: var(--admin-secondary);
+  background: var(--admin-surface-muted);
+}
+tbody tr:last-child > * {
+  border-bottom: 0;
+}
+time {
+  white-space: nowrap;
+}
+.invite-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--admin-secondary);
+  background: var(--admin-surface-muted);
+  white-space: nowrap;
+}
+.invite-status[data-status='AVAILABLE'] {
+  color: var(--admin-accent-text);
+  background: var(--admin-accent-soft);
+}
+.invite-status[data-status='USED'] {
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+}
+.invite-status[data-status='REVOKED'] {
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+.invite-revoke {
+  min-height: 34px;
+  color: var(--admin-danger);
+}
+.invite-legacy-email {
+  display: block;
+  color: var(--admin-muted);
+}
+.invite-feedback {
+  margin: 24px 16px;
+  color: var(--admin-secondary);
+  text-align: center;
+}
+.invite-feedback p {
+  margin-bottom: 10px;
+}
+.invite-pages,
+.invite-dialog footer {
+  justify-content: flex-end;
+}
+.invite-pages {
+  margin-top: 16px;
+}
+.invite-dialog {
+  box-sizing: border-box;
+  width: min(460px, calc(100% - 32px));
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+}
+.invite-dialog form {
+  padding: 24px 24px 0;
+}
+.invite-dialog::backdrop {
+  background: var(--admin-backdrop);
+}
+.invite-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.invite-dialog .invite-dialog-close {
+  display: grid;
+  flex: none;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  place-items: center;
+  border-color: transparent;
+  color: var(--admin-secondary);
+}
+.invite-dialog-close:hover:not(:disabled) {
+  background: var(--admin-surface-hover);
+}
+.invite-dialog-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.invite-dialog p {
+  margin: 12px 0;
+}
+.invite-days {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.created-code {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+.created-code code {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 7px;
+  background: var(--admin-surface-muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: clamp(12px, 3.9vw, 16px);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.invite-dialog .invite-expiry {
+  color: var(--admin-secondary);
+  font-size: 14px;
+}
+.invite-dialog footer {
+  margin: 22px -24px 0;
+  padding: 14px 24px;
+  border-top: 1px solid var(--admin-divider);
+}
+.copy-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.invite-error {
+  color: var(--admin-danger);
+}
+.invite-notice {
+  color: var(--admin-success);
+}
+@media (max-width: 800px) {
+  .invite-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .invite-shell main {
+    padding-top: 18px;
+  }
+}

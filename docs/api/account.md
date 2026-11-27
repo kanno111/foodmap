@@ -11,6 +11,8 @@
 | POST | `/auth/email/code/register` | 公开 | 200 | [邮箱验证码](#email-codes) |
 | POST | `/auth/email/code/password-reset` | 公开 | 200 | [邮箱验证码](#email-codes) |
 | POST | `/api/admin/invite-codes` | 管理员 | 201 | [创建校友邀请码](#invite-codes) |
+| GET | `/api/admin/invite-codes` | 管理员 | 200 | [邀请记录](#invite-codes) |
+| PUT | `/api/admin/invite-codes/{id}/revocation` | 管理员 | 200 | [撤销校友邀请码](#invite-codes) |
 | GET | `/api/me/invite-code` | 普通账号 | 200 | [读取本人推荐码](#invite-codes) |
 | PUT | `/api/me/invite-code` | 普通账号 | 200 | [领取本人推荐码](#invite-codes) |
 | POST | `/auth/register-and-login` | 公开 | 200 | [注册](#register) |
@@ -107,7 +109,9 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 以下接口均要求有效的 Bearer 会话，成功响应带 `Cache-Control: no-store`。账号身份由会话确定。
 
-- `POST /api/admin/invite-codes` 需要 `ROLE_ADMIN`。请求示例为 `{"email":"alumnus@example.test","validDays":7}`。邮箱必填，须通过格式校验，最多 254 字符，存储时转换为小写。邮箱域名若在校园邮箱配置内，返回 400 `USER_PERSONAL_EMAIL_REQUIRED`。`validDays` 选填，范围为 1–30 天，省略或为 `null` 时采用 7 天。每次成功调用都会创建一张新码，返回 201，`data` 含 `id`（字符串）、`code`（26 字符）和 `expiresAt`（UTC 时间）。一次性码原文只在这次响应中返回。
+- `POST /api/admin/invite-codes` 需要 `ROLE_ADMIN`。默认生成无需绑定邮箱的码，请求示例为 `{"validDays":7}`。`validDays` 选填，范围为 1–30 天，省略或为 `null` 时采用 7 天。兼容携带 `email` 的定向发码请求；提供时须为有效的个人邮箱，存储时转换为小写。每次成功调用都会创建一张新码，返回 201，`data` 含 `id`（字符串）、`code`（26 字符）和 `expiresAt`（UTC 时间）。一次性码原文只在这次响应中返回。
+- `GET /api/admin/invite-codes` 需要 `ROLE_ADMIN`。按记录编号倒序，每页 20 条。`page` 默认 1，范围 1–10000，可传 `status` 筛选 `AVAILABLE`、`USED`、`EXPIRED`、`REVOKED`。响应 `data` 包含 `records`、`hasNext`。每条记录含 `id`、`status`、`createdAt`、`expiresAt`、`boundEmail`（可空）和 `registeredUsername`（可空）。
+- `PUT /api/admin/invite-codes/{id}/revocation` 需要 `ROLE_ADMIN`，无需请求体。可撤销仍有效且未使用的码，重复撤销仍返回 200。不存在返回 404 `USER_INVITE_NOT_FOUND`，已使用或过期返回 409 `USER_INVITE_NOT_REVOCABLE`。
 - `GET /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。仅查询本人已经领取的码，尚未领取时返回 200，`data` 为 `{"code":null}`。已领取时 `code` 为 16 字符。
 - `PUT /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。无需请求体，首次调用生成本人推荐码，重复或并发调用返回同一张。返回 200，`data` 含 `code`（16 字符）。推荐码长期有效。
 
@@ -134,17 +138,17 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 **响应**
 
-邮箱必须为有效格式，服务端规范化为小写。校园邮箱可直接申请注册验证码。使用个人邮箱申请注册验证码时，请求另带 `inviteCode`，必须是有效且绑定该邮箱的管理员一次性邀请码。找回密码只按账号绑定且已验证的邮箱处理。成功200、`data:null`；验证码通过邮件发送。
+邮箱必须为有效格式，服务端规范化为小写。校园邮箱可直接申请注册验证码。使用个人邮箱申请注册验证码时，请求另带有效的管理员一次性 `inviteCode`。未绑定的码可用于可接收验证码的个人邮箱；已有绑定的码须与绑定地址精确一致。找回密码只按账号绑定且已验证的邮箱处理。成功200、`data:null`；验证码通过邮件发送。
 
 **错误码**
 
 注册验证码：个人邮箱缺少邀请码时返回400 `USER_CAMPUS_EMAIL_REQUIRED`；邀请码无效、过期、撤销、已使用或与邮箱不匹配时返回400 `USER_INVITE_CODE_INVALID`；已注册邮箱409 `USER_EMAIL_ALREADY_REGISTERED`。找回密码验证码：对于不存在、未验证或不可用的账号，格式有效的邮箱也返回相同成功响应。
 
-其他错误：400 `COMMON_VALIDATION_FAILED`、`USER_CAMPUS_EMAIL_REQUIRED`；429 `AUTH_CODE_RESEND_COOLDOWN`、`AUTH_CODE_EMAIL_RATE_LIMITED`；503 `AUTH_CODE_MAIL_DELIVERY_FAILED`、`AUTH_CODE_DELIVERY_STATE_EXPIRED`、`AUTH_CODE_SERVICE_UNAVAILABLE`。邮件受理成功不保证收件箱投递完成。
+其他错误：400 `COMMON_VALIDATION_FAILED`、`USER_CAMPUS_EMAIL_REQUIRED`；429 `AUTH_CODE_RESEND_COOLDOWN`、`AUTH_CODE_EMAIL_RATE_LIMITED`、`AUTH_CODE_INVITE_RATE_LIMITED`；503 `AUTH_CODE_MAIL_DELIVERY_FAILED`、`AUTH_CODE_DELIVERY_STATE_EXPIRED`、`AUTH_CODE_SERVICE_UNAVAILABLE`。邮件受理成功不保证收件箱投递完成。
 
 **副作用与限制**
 
-默认验证码6位数字、5分钟有效。同邮箱60秒冷却、每小时5次、每24小时10次；注册和找回密码共享发送配额，但验证码用途隔离。错误尝试最多5次；成功消费后失效。同用途重新申请替换原验证码。发送失败会撤销待激活验证码及冷却，不退发送配额。
+默认验证码6位数字、5分钟有效。同邮箱60秒冷却、每小时5次、每24小时10次；注册和找回密码共享发送配额，但验证码用途隔离。校友注册另按同一邀请码跨邮箱累计，默认每24小时最多5次。两类额度在 Redis 一次检查并预留。错误尝试最多5次；成功消费后失效。同用途重新申请替换原验证码。发送失败会撤销待激活验证码及冷却，不退发送配额。
 
 <a id="register"></a>
 
@@ -163,7 +167,7 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 | 字段 | 规则 |
 | --- | --- |
-| `email` | 必填完整邮箱，与验证码绑定邮箱一致。个人邮箱还须与管理员邀请码绑定地址精确一致 |
+| `email` | 必填完整邮箱，与验证码收件邮箱一致。管理员码若已绑定邮箱，也须匹配该地址 |
 | `inviteCode` | 校园邮箱可选填普通用户的16位长期推荐码。个人邮箱必须填写管理员发放的26位校友邀请码 |
 | `verificationCode` | 必填，严格6位ASCII数字，保留前导零 |
 | `username` | 去首尾空白后1–24字符，中文/英文字母/数字/下划线，区分大小写及重音，唯一 |

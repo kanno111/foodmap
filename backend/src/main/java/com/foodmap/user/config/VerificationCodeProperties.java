@@ -42,6 +42,9 @@ public class VerificationCodeProperties {
     @Min(1)
     private int emailDailyLimit;
 
+    @Min(1)
+    private int inviteDailyLimit = 5;
+
     @NotBlank
     @Size(min = 32)
     @ToString.Exclude

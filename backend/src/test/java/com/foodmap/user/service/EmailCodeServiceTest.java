@@ -121,6 +121,6 @@ class EmailCodeServiceTest {
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(UserErrorCode.INVITE_CODE_INVALID));
         verifyNoInteractions(verificationCodeService);
         service.sendRegistrationCode("ALUMNUS@example.com", code.toLowerCase(java.util.Locale.ROOT));
-        verify(verificationCodeService).send(VerificationCodePurpose.REGISTER, email);
+        verify(verificationCodeService).sendRegistrationForInvite(email, 7L);
     }
 }

@@ -48,8 +48,7 @@ function fieldError(field: string) {
 function checkField(field: string) {
   if (field === 'email') {
     errors.email = alumni.value
-      ? fullEmailError(email.value) ||
-        (!emailError(email.value) ? '请输入邀请码绑定的个人邮箱' : null)
+      ? fullEmailError(email.value) || (!emailError(email.value) ? '请输入个人邮箱' : null)
       : emailError(email.value)
   }
   if (field === 'invite') {
@@ -257,7 +256,7 @@ onBeforeUnmount(() => {
       <small v-else>
         {{
           alumni
-            ? '请填写邀请码绑定的个人邮箱。'
+            ? '请填写可接收验证码的个人邮箱。'
             : '验证码5分钟内有效，同一邮箱60秒内只能发送一次。'
         }}
       </small>

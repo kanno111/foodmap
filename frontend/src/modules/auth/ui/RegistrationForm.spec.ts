@@ -66,7 +66,7 @@ describe('注册方式', () => {
     )
   })
 
-  it('校友使用所绑定的个人邮箱和管理员邀请码申请验证码和注册', async () => {
+  it('校友使用自己的个人邮箱和管理员邀请码申请验证码和注册', async () => {
     const invite = 'ABCDEFGHJKMNPQRSTVWXYZ2345'
     const alumni = [...host.querySelectorAll<HTMLButtonElement>('.registration-modes button')][1]!
     alumni.click()
