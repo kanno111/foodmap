@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** 公告发布、撤回和可见性；仅指定公告保存收件人，正文始终保存一份。 */
 @Service
@@ -106,20 +108,51 @@ public class AnnouncementService {
     public AnnouncementViews.Page page(AnnouncementQuery query) {
         admin();
         var result = new AnnouncementViews.Page();
-        result.setTotal(announcements.count(query.getStatus()));
+        result.setTotal(announcements.count(query.getStatus(), query.getAudience()));
         result.setPage(query.getPage());
         result.setPageSize(query.getPageSize());
         result.setTotalPages((result.getTotal() + query.getPageSize() - 1) / query.getPageSize());
-        result.setRecords(
-                announcements
-                        .page(
-                                query.getStatus(),
-                                ((long) query.getPage() - 1) * query.getPageSize(),
-                                query.getPageSize())
-                        .stream()
-                        .map(row -> view(row, false))
-                        .toList());
+        var rows = announcements.page(
+                query.getStatus(),
+                query.getAudience(),
+                ((long) query.getPage() - 1) * query.getPageSize(),
+                query.getPageSize());
+        result.setRecords(adminRecords(rows));
         return result;
+    }
+
+    private List<AnnouncementViews.AdminRecord> adminRecords(List<AnnouncementEntity> rows) {
+        var targetedIds = rows.stream()
+                .filter(row -> "TARGETED".equals(row.getAudience()))
+                .map(AnnouncementEntity::getId)
+                .toList();
+        var previews = targetedIds.isEmpty() ? List.<AnnouncementMapper.RecipientPreviewRow>of()
+                : announcements.recipientPreviews(targetedIds);
+        var byAnnouncement = previews.stream().collect(
+                Collectors.groupingBy(AnnouncementMapper.RecipientPreviewRow::announcementId));
+        var names = users.namesByIds(previews.stream()
+                .map(AnnouncementMapper.RecipientPreviewRow::userId)
+                .distinct()
+                .toList());
+        return rows.stream()
+                .map(row -> adminRecord(row, byAnnouncement.getOrDefault(row.getId(), List.of()), names))
+                .toList();
+    }
+
+    private AnnouncementViews.AdminRecord adminRecord(
+            AnnouncementEntity row,
+            List<AnnouncementMapper.RecipientPreviewRow> preview,
+            Map<Long, String> names) {
+        var record = view(row, false, new AnnouncementViews.AdminRecord());
+        record.setRecipientCount(preview.isEmpty() ? 0 : preview.getFirst().recipientCount());
+        record.setRecipientPreview(preview.stream()
+                .map(recipient -> recipient(recipient.userId(), names))
+                .toList());
+        return record;
+    }
+
+    private AnnouncementViews.Recipient recipient(long userId, Map<Long, String> names) {
+        return new AnnouncementViews.Recipient(Long.toString(userId), names.get(userId));
     }
 
     /** 管理员读取完整历史，不提供正文修改接口。 */
@@ -136,7 +169,7 @@ public class AnnouncementService {
                 ? announcements.recipients(row.getId()) : List.of();
         var names = users.namesByIds(recipients);
         result.setRecipients(recipients.stream()
-                .map(userId -> new AnnouncementViews.Recipient(userId.toString(), names.get(userId)))
+                .map(userId -> recipient(userId, names))
                 .toList());
         return result;
     }

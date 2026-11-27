@@ -787,6 +787,49 @@ class AnnouncementApiIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void adminListCombinesStatusAndAudienceBeforePaginationAndLimitsRecipientPreview()
+            throws Exception {
+        jdbc.update("INSERT INTO users(id,username,email,password_hash,email_verified) VALUES(?,?,?,?,TRUE)",
+                33, "notice_33", "notice33@example.test", "test-only");
+        long all = publish();
+        String targeted = id(publishTargeted(other, UUID.randomUUID(), List.of("33", "22", "11"))
+                .andExpect(status().isOk()));
+        String withdrawn = id(publishTargeted(other, UUID.randomUUID(), List.of("33"))
+                .andExpect(status().isOk()));
+        withdraw(Long.parseLong(withdrawn)).andExpect(status().isOk());
+        var list = "/api/admin/announcements";
+        var authorization = "Bearer " + other;
+
+        mvc.perform(get(list).header("Authorization", authorization))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageSize").value(10))
+                .andExpect(jsonPath("$.data.total").value(3));
+        mvc.perform(get(list).header("Authorization", authorization)
+                        .param("audience", "TARGETED").param("status", "PUBLISHED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value(targeted))
+                .andExpect(jsonPath("$.data.records[0].recipientCount").value(3))
+                .andExpect(jsonPath("$.data.records[0].recipientPreview.length()").value(2))
+                .andExpect(jsonPath("$.data.records[0].recipientPreview[0].username").value("notice_11"))
+                .andExpect(jsonPath("$.data.records[0].recipientPreview[1].id").value("22"));
+        mvc.perform(get(list).header("Authorization", authorization)
+                        .param("audience", "TARGETED").param("pageSize", "1").param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.records[0].id").value(targeted));
+        mvc.perform(get(list).header("Authorization", authorization).param("audience", "ALL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value(Long.toString(all)))
+                .andExpect(jsonPath("$.data.records[0].recipientCount").value(0))
+                .andExpect(jsonPath("$.data.records[0].recipientPreview").isEmpty());
+        mvc.perform(get(list).header("Authorization", authorization).param("audience", "OTHER"))
+                .andExpect(status().isBadRequest());
+    }
+
     private UUID lastRequest;
 
     private long publish() throws Exception {

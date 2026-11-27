@@ -147,6 +147,7 @@ describe('公告编辑', () => {
       recipients: [
         { id: '11', username: '小林' },
         { id: '22', username: null },
+        { id: '33', username: '山茶' },
       ],
     }
     const all: AdminAnnouncementDetail = {
@@ -158,10 +159,13 @@ describe('公告编辑', () => {
     }
     vi.mocked(fetchAdminAnnouncements).mockResolvedValue({
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       total: 2,
       totalPages: 1,
-      records: [targeted, all],
+      records: [
+        { ...targeted, recipientCount: 3, recipientPreview: targeted.recipients!.slice(0, 2) },
+        { ...all, recipientCount: 0, recipientPreview: [] },
+      ],
     })
     vi.mocked(fetchAdminAnnouncement).mockImplementation(async (id) =>
       id === targeted.id ? targeted : all,
@@ -169,14 +173,20 @@ describe('公告编辑', () => {
     await mountWorkspace()
     host.querySelectorAll<HTMLButtonElement>('.announcement-tabs button')[1]!.click()
     const button = () =>
-      host.querySelector<HTMLButtonElement>('[aria-label="查看公告详情：指定公告"]')!
+      host.querySelector<HTMLButtonElement>('[aria-label="查看全部 3 位收件人：指定公告"]')!
     await vi.waitFor(() => expect(button()).not.toBeNull())
+    const pageSize = host.querySelector<HTMLSelectElement>('[aria-label="每页公告条数"]')!
+    expect(pageSize.value).toBe('10')
+    expect([...pageSize.options].map(({ value }) => value)).toEqual(['5', '10', '20'])
+    expect(host.querySelector('.record-audience')?.textContent).toContain('小林')
+    expect(host.querySelector('.record-audience')?.textContent).not.toContain('山茶')
+    expect(button().textContent).toContain('+1 人')
     button().click()
     const detail = host.querySelector<HTMLDialogElement>('.record-detail')!
-    await vi.waitFor(() => expect(detail.textContent).toContain('收件人（2 人）'))
+    await vi.waitFor(() => expect(detail.textContent).toContain('收件人（3 人）'))
     expect(
       [...detail.querySelectorAll('.record-recipients li')].map((item) => item.textContent?.trim()),
-    ).toEqual(['小林', '账号不可用 · ID 22'])
+    ).toEqual(['小林', '账号不可用 · ID 22', '山茶'])
     detail.querySelector<HTMLButtonElement>('.dialog-close')!.click()
     await nextTick()
     expect(detail.open).toBe(false)

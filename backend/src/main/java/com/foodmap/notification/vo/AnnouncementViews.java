@@ -26,7 +26,15 @@ public final class AnnouncementViews {
 
     public record Recipient(String id, String username) {}
 
-    /** 仅管理员详情返回收件人，删除账号后保留其历史 ID。 */
+    /** 管理员列表只返回有限预览，完整名单通过详情读取。 */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class AdminRecord extends Detail {
+        private int recipientCount;
+        private List<Recipient> recipientPreview;
+    }
+
+    /** 管理员详情返回完整名单，删除账号后保留其历史 ID。 */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class AdminDetail extends Detail {
@@ -37,7 +45,7 @@ public final class AnnouncementViews {
 
     @Data
     public static class Page {
-        private List<Detail> records;
+        private List<AdminRecord> records;
         private long total;
         private int page;
         private int pageSize;

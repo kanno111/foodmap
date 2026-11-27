@@ -229,7 +229,7 @@ review沿用[按作者分组分页](reviews.md#review-list)的currentReview结�
 | POST | `/api/admin/announcements` | JSON包含clientRequestId（UUID）、title、content。发布给全体用户，返回Detail。 |
 | POST | `/api/admin/announcements/targeted` | 除UUID、标题和正文外，必须提供recipientUserIds数组，1～100个正Long十进制字符串。服务端去重，任一账号不可用则整笔返回400。返回Detail。 |
 | GET | `/api/admin/announcements/recipients` | keyword默认空，最长64个字符，按用户名子串匹配；page默认1、范围1～1000000。仅查询启用且邮箱已验证的账号。每页最多10条，返回records（每项只含id、username）和hasNext。 |
-| GET | `/api/admin/announcements` | status默认ALL，可选ALL/PUBLISHED/WITHDRAWN；page默认1、范围1～1000000；pageSize默认20、范围1～50。200返回records、total、page、pageSize、totalPages。 |
+| GET | `/api/admin/announcements` | `status` 默认 `ALL`，可选 `ALL/PUBLISHED/WITHDRAWN`。`audience` 默认 `ANY`（全部范围），可选 `ALL`（全体用户）或 `TARGETED`（指定用户）。两个筛选可同时使用。`page` 默认 1、范围 1～1000000，`pageSize` 默认 10、范围 1～50。200 返回 `records`、`total`、`page`、`pageSize`、`totalPages`。 |
 | GET | `/api/admin/announcements/{id}` | 正Long十进制ID。200返回Detail并附加 `recipients` 名单，允许核对撤回历史。 |
 | POST | `/api/admin/announcements/{id}/withdraw` | 无请求体。首次与重复撤回均200返回Detail，重复时保留首次撤回人及时间。 |
 
@@ -257,7 +257,7 @@ Detail为统一响应的data：
 
 管理接口均要求有效Bearer及当前数据库ROLE_ADMIN，返回`Cache-Control: no-store`。Detail的audience为ALL或TARGETED。只有管理员详情附加 `recipients` 数组，指定公告按用户 ID 返回 `{id, username}`，用户名取当前值，账号删除或查不到时为 null，撤回后仍可核对名单。全体公告返回空数组。正文按纯文本保存。
 
-管理员列表按publishedAt/id倒序，计数与记录同一快照，越界返回空records及真实总数。撤回与个人已读、删除共用公告主行锁，保留首次撤回人和时间。全体公告发布或撤回提交后提示本实例所有在线连接刷新，指定公告只提示收件人的连接。失败回滚不发提示。
+管理员列表按publishedAt/id倒序，筛选后的计数与记录使用同一快照，越界返回空records及真实总数。列表记录在 Detail 字段外追加 `recipientCount`（收件人数）和 `recipientPreview`（按用户 ID 排序的前两位收件人，格式同 `recipients`）。全体公告的两个字段分别为 0 和空数组。撤回与个人已读、删除共用公告主行锁，保留首次撤回人和时间。全体公告发布或撤回提交后提示本实例所有在线连接刷新，指定公告只提示收件人的连接。失败回滚不发提示。
 
 前端管理入口为`/admin/announcements`。发布默认全体用户，点「更改」可搜索和勾选收件人。确认后发布，成功进入公告记录。发布结果未知时保留原UUID、正文和发送范围重试，写入成功后列表读取失败只重试GET。
 

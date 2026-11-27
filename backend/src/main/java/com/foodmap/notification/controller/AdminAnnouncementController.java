@@ -26,7 +26,7 @@ public class AdminAnnouncementController {
 
     @InitBinder("announcementQuery")
     void bind(WebDataBinder binder) {
-        binder.setAllowedFields("status", "page", "pageSize");
+        binder.setAllowedFields("status", "audience", "page", "pageSize");
     }
 
     /** 发布或幂等重试返回同一公告及replayed标志，正文只保存纯文本。 */

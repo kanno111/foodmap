@@ -13,8 +13,13 @@ export interface AnnouncementDetail {
   replayed: boolean
 }
 export type AnnouncementStatus = 'ALL' | 'PUBLISHED' | 'WITHDRAWN'
+export type AnnouncementAudienceFilter = 'ANY' | 'ALL' | 'TARGETED'
+export interface AdminAnnouncementRecord extends AnnouncementDetail {
+  recipientCount: number
+  recipientPreview: HistoricalRecipient[]
+}
 export interface AnnouncementPage {
-  records: AnnouncementDetail[]
+  records: AdminAnnouncementRecord[]
   total: number
   page: number
   pageSize: number
@@ -30,8 +35,12 @@ export interface AnnouncementRecipient {
   id: string
   username: string
 }
+interface HistoricalRecipient {
+  id: string
+  username: string | null
+}
 export interface AdminAnnouncementDetail extends AnnouncementDetail {
-  recipients?: { id: string; username: string | null }[]
+  recipients?: HistoricalRecipient[]
 }
 export interface AnnouncementRecipientPage {
   records: AnnouncementRecipient[]
@@ -44,6 +53,19 @@ export const normalizeAnnouncementText = (s: string) => s.replace(/\r\n?/g, '\n'
 const date = (s: unknown): s is string => typeof s === 'string' && Number.isFinite(Date.parse(s))
 const count = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) >= 0
 const invalid = () => new Error('公告资料无法确认，请重新加载。')
+function recipientsValid(recipients: HistoricalRecipient[], length: number) {
+  return (
+    Array.isArray(recipients) &&
+    recipients.length === length &&
+    recipients.every(
+      (recipient) =>
+        announcementId(recipient?.id) &&
+        (recipient.username === null ||
+          (typeof recipient.username === 'string' && !!recipient.username.trim())),
+    ) &&
+    new Set(recipients.map(({ id }) => id)).size === recipients.length
+  )
+}
 /** 只信任白名单字段和完整生命周期，正文始终作为纯文本交给视图。 */
 function detail(row: AnnouncementDetail): AnnouncementDetail {
   if (
@@ -113,36 +135,56 @@ export async function searchAnnouncementRecipients(
 }
 /** 列表绑定发起时凭证；失败不能伪装为空列表。 */
 export async function fetchAdminAnnouncements(
-  status: AnnouncementStatus,
-  page: number,
+  filters: {
+    status: AnnouncementStatus
+    audience: AnnouncementAudienceFilter
+    page: number
+    pageSize: number
+  },
   token: string,
   signal: AbortSignal,
 ): Promise<AnnouncementPage> {
+  const { status, audience, page, pageSize } = filters
   const response = await httpClient.get<ApiResponse<AnnouncementPage>>(admin, {
     ...options(token, signal),
-    params: { status, page, pageSize: 20 },
+    params: filters,
   })
   const value = response.data.data
   if (
     !response.data.success ||
     !value ||
     value.page !== page ||
-    value.pageSize !== 20 ||
+    value.pageSize !== pageSize ||
     !count(value.total) ||
     !count(value.totalPages) ||
-    value.totalPages !== Math.ceil(value.total / 20) ||
+    value.totalPages !== Math.ceil(value.total / pageSize) ||
     !Array.isArray(value.records) ||
-    value.records.length > 20 ||
+    value.records.length > pageSize ||
     value.records.length > value.total
   )
     throw invalid()
-  const records = value.records.map(detail)
-  if (
-    new Set(records.map((r) => r.id)).size !== records.length ||
-    records.some((r) => status !== 'ALL' && r.status !== status)
-  )
-    throw invalid()
-  return { records, total: value.total, totalPages: value.totalPages, page, pageSize: 20 }
+  const records = value.records.map((row) => {
+    const record = detail(row)
+    const { recipientCount, recipientPreview } = row
+    const targeted = record.audience === 'TARGETED'
+    if (
+      (status !== 'ALL' && record.status !== status) ||
+      (audience !== 'ANY' && record.audience !== audience) ||
+      !count(recipientCount) ||
+      (targeted
+        ? recipientCount < 1 || recipientCount > ANNOUNCEMENT_RECIPIENT_LIMIT
+        : recipientCount !== 0) ||
+      !recipientsValid(recipientPreview, Math.min(recipientCount, 2))
+    )
+      throw invalid()
+    return {
+      ...record,
+      recipientCount,
+      recipientPreview: recipientPreview.map(({ id, username }) => ({ id, username })),
+    }
+  })
+  if (new Set(records.map((r) => r.id)).size !== records.length) throw invalid()
+  return { records, total: value.total, totalPages: value.totalPages, page, pageSize }
 }
 /** 一次发布尝试的UUID及正文必须保持一致；未知结果由调用方用原请求重试。 */
 export async function publishAnnouncement(
@@ -198,16 +240,9 @@ async function fetchDetail(
   if (!management || recipients === undefined) return result
   if (
     !Array.isArray(recipients) ||
-    (result.audience === 'TARGETED'
-      ? recipients.length < 1 || recipients.length > ANNOUNCEMENT_RECIPIENT_LIMIT
-      : recipients.length !== 0) ||
-    recipients.some(
-      (recipient) =>
-        !announcementId(recipient?.id) ||
-        (recipient.username !== null &&
-          (typeof recipient.username !== 'string' || !recipient.username.trim())),
-    ) ||
-    new Set(recipients.map(({ id }) => id)).size !== recipients.length
+    (result.audience === 'TARGETED' &&
+      (recipients.length < 1 || recipients.length > ANNOUNCEMENT_RECIPIENT_LIMIT)) ||
+    !recipientsValid(recipients, result.audience === 'TARGETED' ? recipients.length : 0)
   )
     throw invalid()
   return { ...result, recipients: recipients.map(({ id, username }) => ({ id, username })) }

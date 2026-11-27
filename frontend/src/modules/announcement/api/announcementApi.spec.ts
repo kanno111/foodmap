@@ -126,16 +126,45 @@ describe('公告API白名单', () => {
       headers: { Authorization: 'Bearer admin-token' },
     })
   })
-  it('管理分页拒绝状态不符或计数损坏，且拒绝非法ID', async () => {
-    vi.spyOn(httpClient, 'get').mockResolvedValue({
+  it('管理分页传递发送范围及条数，并校验筛选结果和收件人预览', async () => {
+    const record = {
+      ...row(),
+      audience: 'TARGETED',
+      recipientCount: 3,
+      recipientPreview: [
+        { id: '11', username: '小林' },
+        { id: '22', username: null },
+      ],
+    }
+    const get = vi.spyOn(httpClient, 'get').mockResolvedValue({
       data: {
         success: true,
-        data: { records: [row()], total: 1, page: 1, pageSize: 20, totalPages: 1 },
+        data: { records: [record], total: 1, page: 1, pageSize: 5, totalPages: 1 },
       },
     })
+    const signal = new AbortController().signal
+    const filters = { status: 'PUBLISHED', audience: 'TARGETED', page: 1, pageSize: 5 } as const
+    await expect(fetchAdminAnnouncements(filters, 'token', signal)).resolves.toMatchObject({
+      records: [record],
+    })
+    expect(get).toHaveBeenCalledExactlyOnceWith('/api/admin/announcements', {
+      params: filters,
+      signal,
+      headers: { Authorization: 'Bearer token' },
+    })
     await expect(
-      fetchAdminAnnouncements('WITHDRAWN', 1, 'token', new AbortController().signal),
+      fetchAdminAnnouncements({ ...filters, status: 'WITHDRAWN' }, 'token', signal),
     ).rejects.toThrow()
+    await expect(
+      fetchAdminAnnouncements({ ...filters, audience: 'ALL' }, 'token', signal),
+    ).rejects.toThrow()
+    await expect(
+      fetchAdminAnnouncements({ ...filters, pageSize: 20 }, 'token', signal),
+    ).rejects.toThrow()
+    record.recipientPreview.pop()
+    await expect(fetchAdminAnnouncements(filters, 'token', signal)).rejects.toThrow()
+  })
+  it('拒绝非法公告 ID', async () => {
     for (const id of ['0', '01', '9223372036854775808', 'announcement:12'])
       await expect(fetchAnnouncement(id, 'token', new AbortController().signal)).rejects.toThrow()
   })

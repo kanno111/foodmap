@@ -11,6 +11,7 @@ import {
   withdrawAnnouncement,
   normalizeAnnouncementText,
   type AdminAnnouncementDetail,
+  type AnnouncementAudienceFilter,
   type AnnouncementPage,
   type AnnouncementInput,
   type AnnouncementRecipient,
@@ -22,7 +23,8 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
   const tab = ref<'publish' | 'records'>('publish'),
     title = ref(''),
     content = ref(''),
-    status = ref<AnnouncementStatus>('ALL')
+    status = ref<AnnouncementStatus>('ALL'),
+    audienceFilter = ref<AnnouncementAudienceFilter>('ANY')
   const result = ref<AnnouncementPage | null>(null),
     detail = ref<AdminAnnouncementDetail | null>(null)
   const busy = ref(false),
@@ -33,7 +35,8 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     notice = ref(''),
     detailError = ref('')
   const pending = ref<AnnouncementInput | null>(null),
-    page = ref(1)
+    page = ref(1),
+    pageSize = ref(10)
   const recipients = ref<AnnouncementRecipient[]>([])
   let context = 0,
     version = 0,
@@ -69,7 +72,16 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     error.value = ''
     result.value = null
     try {
-      const data = await fetchAdminAnnouncements(status.value, next, actor.token, readAbort.signal)
+      const data = await fetchAdminAnnouncements(
+        {
+          status: status.value,
+          audience: audienceFilter.value,
+          page: next,
+          pageSize: pageSize.value,
+        },
+        actor.token,
+        readAbort.signal,
+      )
       if (valid(actor) && ticket === version) result.value = data
     } catch (reason) {
       if (valid(actor) && ticket === version) error.value = toErrorMessage(reason)
@@ -111,6 +123,7 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
       if (!targetedOnly) {
         tab.value = 'records'
         status.value = 'ALL'
+        audienceFilter.value = 'ANY'
         await load(1)
       }
       return valid(actor)
@@ -190,10 +203,12 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     busy.value = loading.value = false
     tab.value = 'publish'
     status.value = 'ALL'
+    audienceFilter.value = 'ANY'
     page.value = 1
+    pageSize.value = 10
   }
   watch(() => [auth.user?.id, authToken.value, auth.isAdministrator], reset, { flush: 'sync' })
-  watch([tab, status], () => {
+  watch([tab, status, audienceFilter, pageSize], () => {
     if (tab.value === 'records' && !busy.value) void load(1)
   })
   onBeforeUnmount(reset)
@@ -202,6 +217,7 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     title,
     content,
     status,
+    audienceFilter,
     result,
     detail,
     busy,
@@ -214,6 +230,7 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     pending,
     recipients,
     page,
+    pageSize,
     dirty,
     validForm,
     load,

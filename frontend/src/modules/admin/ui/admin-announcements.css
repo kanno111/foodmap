@@ -304,6 +304,21 @@ textarea:focus-visible {
 .record-time {
   color: var(--admin-secondary);
 }
+.record-audience-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 4px;
+}
+.record-recipient-name {
+  max-width: min(100%, 13ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-recipient-more {
+  font-size: 12px;
+}
 .record-time {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -322,12 +337,18 @@ textarea:focus-visible {
   color: var(--admin-secondary);
 }
 .record-actions,
+.announcement-record-filters,
 .record-page-buttons {
   display: flex;
   gap: 8px;
 }
 .record-actions {
   font-size: 12px;
+}
+.announcement-record-filters,
+.record-page-buttons {
+  flex-wrap: wrap;
+  align-items: center;
 }
 .list-message,
 .announcement-empty {

@@ -16,6 +16,7 @@ const {
   title,
   content,
   status,
+  audienceFilter,
   result,
   detail,
   busy,
@@ -28,6 +29,7 @@ const {
   pending,
   recipients,
   page,
+  pageSize,
   dirty,
   validForm,
 } = state
@@ -120,7 +122,7 @@ function closeRecord(restoreFocus = false) {
   if (restoreFocus) recordSource?.focus({ preventScroll: true })
   recordSource = undefined
 }
-watch([tab, status, page], () => closeRecord())
+watch([tab, status, audienceFilter, page, pageSize], () => closeRecord())
 function leave(event: globalThis.BeforeUnloadEvent) {
   if (dirty.value || busy.value) event.preventDefault()
 }
@@ -282,11 +284,18 @@ onBeforeUnmount(() => {
         <div v-else class="announcement-records-layout" :class="{ 'with-detail': recordId }">
           <section class="announcement-records" aria-label="公告记录">
             <div class="announcement-record-toolbar">
-              <select v-model="status" aria-label="公告状态" :disabled="busy">
-                <option value="ALL">全部状态</option>
-                <option value="PUBLISHED">已发布</option>
-                <option value="WITHDRAWN">已撤回</option>
-              </select>
+              <div class="announcement-record-filters">
+                <select v-model="status" aria-label="公告状态" :disabled="busy">
+                  <option value="ALL">全部状态</option>
+                  <option value="PUBLISHED">已发布</option>
+                  <option value="WITHDRAWN">已撤回</option>
+                </select>
+                <select v-model="audienceFilter" aria-label="发送范围" :disabled="busy">
+                  <option value="ANY">全部范围</option>
+                  <option value="ALL">全体用户</option>
+                  <option value="TARGETED">指定用户</option>
+                </select>
+              </div>
               <span>{{ loading ? '正在加载…' : result ? `共 ${result.total} 条公告` : '' }}</span>
             </div>
             <p v-if="actionError" role="alert" class="announcement-error list-message">
@@ -329,7 +338,29 @@ onBeforeUnmount(() => {
                       </button>
                     </td>
                     <td class="record-audience" role="cell">
-                      {{ row.audience === 'TARGETED' ? '指定用户' : '全体用户' }}
+                      <div v-if="row.audience === 'TARGETED'" class="record-audience-preview">
+                        <span
+                          v-for="(recipient, index) in row.recipientPreview"
+                          :key="recipient.id"
+                          class="record-recipient-name"
+                          :title="recipient.username ?? `账号不可用 · ID ${recipient.id}`"
+                        >
+                          {{ index ? '、' : '' }}{{ recipient.username ?? `ID ${recipient.id}` }}
+                        </span>
+                        <button
+                          v-if="row.recipientCount > row.recipientPreview.length"
+                          type="button"
+                          class="text-action record-recipient-more"
+                          :disabled="busy"
+                          :aria-label="`查看全部 ${row.recipientCount} 位收件人：${row.title}`"
+                          :aria-expanded="recordId === row.id"
+                          aria-controls="announcement-record-detail"
+                          @click="inspect(row.id, $event)"
+                        >
+                          … +{{ row.recipientCount - row.recipientPreview.length }} 人
+                        </button>
+                      </div>
+                      <template v-else>全体用户</template>
                     </td>
                     <td class="record-time" role="cell">
                       <time :datetime="row.publishedAt">{{ readingTime(row.publishedAt) }}</time>
@@ -369,22 +400,27 @@ onBeforeUnmount(() => {
                   </tr>
                 </tbody>
               </table>
-              <div class="announcement-pagination">
-                <span>第 {{ page }} / {{ result.totalPages || 1 }} 页</span>
-                <div class="record-page-buttons">
-                  <button type="button" :disabled="page <= 1 || busy" @click="state.load(page - 1)">
-                    上一页
-                  </button>
-                  <button
-                    type="button"
-                    :disabled="page >= result.totalPages || busy"
-                    @click="state.load(page + 1)"
-                  >
-                    下一页
-                  </button>
-                </div>
-              </div>
             </template>
+            <div class="announcement-pagination">
+              <select v-model.number="pageSize" aria-label="每页公告条数" :disabled="busy">
+                <option v-for="size in [5, 10, 20]" :key="size" :value="size">
+                  每页 {{ size }} 条
+                </option>
+              </select>
+              <div v-if="result" class="record-page-buttons">
+                <span>第 {{ page }} / {{ result.totalPages || 1 }} 页</span>
+                <button type="button" :disabled="page <= 1 || busy" @click="state.load(page - 1)">
+                  上一页
+                </button>
+                <button
+                  type="button"
+                  :disabled="page >= result.totalPages || busy"
+                  @click="state.load(page + 1)"
+                >
+                  下一页
+                </button>
+              </div>
+            </div>
           </section>
           <dialog
             id="announcement-record-detail"

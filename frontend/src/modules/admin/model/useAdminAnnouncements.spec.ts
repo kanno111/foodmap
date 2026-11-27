@@ -66,7 +66,7 @@ describe('公告管理状态', () => {
       total: 0,
       totalPages: 0,
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
     })
   })
   afterEach(() => {
@@ -147,12 +147,33 @@ describe('公告管理状态', () => {
     expect(await state.publish()).toBe(false)
     expect(publishAnnouncement).not.toHaveBeenCalled()
   })
-  it('状态筛选与切换记录重新读取第一页', async () => {
+  it('状态、发送范围和每页条数变化后重新读取第一页', async () => {
     state.tab.value = 'records'
     await settle()
+    expect(vi.mocked(fetchAdminAnnouncements).mock.lastCall?.[0]).toEqual({
+      status: 'ALL',
+      audience: 'ANY',
+      page: 1,
+      pageSize: 10,
+    })
     state.page.value = 3
     state.status.value = 'WITHDRAWN'
+    state.audienceFilter.value = 'TARGETED'
     await settle()
-    expect(vi.mocked(fetchAdminAnnouncements).mock.lastCall?.slice(0, 2)).toEqual(['WITHDRAWN', 1])
+    expect(vi.mocked(fetchAdminAnnouncements).mock.lastCall?.[0]).toEqual({
+      status: 'WITHDRAWN',
+      audience: 'TARGETED',
+      page: 1,
+      pageSize: 10,
+    })
+    state.page.value = 2
+    state.pageSize.value = 5
+    await settle()
+    expect(vi.mocked(fetchAdminAnnouncements).mock.lastCall?.[0]).toEqual({
+      status: 'WITHDRAWN',
+      audience: 'TARGETED',
+      page: 1,
+      pageSize: 5,
+    })
   })
 })

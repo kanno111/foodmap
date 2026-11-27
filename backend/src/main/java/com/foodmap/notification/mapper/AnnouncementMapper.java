@@ -18,6 +18,11 @@ public interface AnnouncementMapper {
     String FOR_RECIPIENT =
             " AND (a.audience='ALL' OR EXISTS (SELECT 1 FROM notification_announcement_recipients r"
                     + " WHERE r.announcement_id=a.id AND r.user_id=#{owner}))";
+    String ADMIN_FILTER =
+            "(#{status}='ALL' OR status IN (#{status},CONCAT('TARGETED_',#{status})))"
+                    + " AND (#{audience}='ANY' OR audience=#{audience})";
+
+    record RecipientPreviewRow(long announcementId, long userId, int recipientCount) {}
 
     @Insert(
             "INSERT INTO"
@@ -37,6 +42,24 @@ public interface AnnouncementMapper {
     @Select("SELECT user_id FROM notification_announcement_recipients"
             + " WHERE announcement_id=#{id} ORDER BY user_id")
     List<Long> recipients(long id);
+
+    /** 只读取当前页指定公告的前两位收件人及总人数，顺序与详情相同。 */
+    @Select("""
+            <script>
+            SELECT announcement_id AS announcementId, user_id AS userId, recipient_count AS recipientCount
+            FROM (
+                SELECT announcement_id, user_id,
+                    COUNT(*) OVER (PARTITION BY announcement_id) AS recipient_count,
+                    ROW_NUMBER() OVER (PARTITION BY announcement_id ORDER BY user_id) AS recipient_position
+                FROM notification_announcement_recipients
+                WHERE announcement_id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            ) ranked
+            WHERE recipient_position &lt;= 2
+            ORDER BY announcement_id, recipient_position
+            </script>
+            """)
+    List<RecipientPreviewRow> recipientPreviews(@Param("ids") List<Long> ids);
 
     @Select("SELECT EXISTS (SELECT 1 FROM notification_announcement_recipients"
             + " WHERE announcement_id=#{id} AND user_id=#{owner})")
@@ -59,17 +82,16 @@ public interface AnnouncementMapper {
             "SELECT "
                     + COLUMNS
                     + " FROM notification_announcements WHERE"
-                    + " (#{status}='ALL' OR status IN (#{status},CONCAT('TARGETED_',#{status})))"
+                    + " " + ADMIN_FILTER
                     + " ORDER BY published_at DESC,id DESC LIMIT #{limit} OFFSET #{offset}")
     List<AnnouncementEntity> page(
             @Param("status") String status,
+            @Param("audience") String audience,
             @Param("offset") long offset,
             @Param("limit") int limit);
 
-    @Select(
-            "SELECT COUNT(*) FROM notification_announcements WHERE"
-                    + " (#{status}='ALL' OR status IN (#{status},CONCAT('TARGETED_',#{status})))")
-    long count(String status);
+    @Select("SELECT COUNT(*) FROM notification_announcements WHERE " + ADMIN_FILTER)
+    long count(@Param("status") String status, @Param("audience") String audience);
 
     @Update(
             "UPDATE notification_announcements SET"
