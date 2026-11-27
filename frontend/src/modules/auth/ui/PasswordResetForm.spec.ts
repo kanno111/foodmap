@@ -107,6 +107,26 @@ describe('password reset form', () => {
     expect(host.querySelector('#reset-email-suffix')?.textContent).toBe('@std.uestc.edu.cn')
   })
 
+  it('sends and submits using the complete email after disabling the school suffix', async () => {
+    vi.mocked(sendPasswordResetCode).mockResolvedValue()
+    vi.mocked(resetPassword).mockResolvedValue({ username: 'alumnus' })
+    host.querySelector<HTMLButtonElement>('.auth-email-toggle')!.click()
+    await nextTick()
+    expect(host.querySelector('#reset-email-suffix')).toBeNull()
+    fill({ 'reset-email': ' Alumni@Example.com ' })
+    host.querySelector<HTMLButtonElement>('.code-button')!.click()
+    await vi.waitFor(() => expect(host.textContent).toContain('请求已受理'))
+    expect(sendPasswordResetCode).toHaveBeenCalledWith('alumni@example.com')
+    await submit()
+    await vi.waitFor(() =>
+      expect(resetPassword).toHaveBeenCalledWith({
+        email: 'alumni@example.com',
+        verificationCode: '012345',
+        newPassword: 'NewPassword2026',
+      }),
+    )
+  })
+
   it('does not send verification for a full or malformed email prefix', async () => {
     for (const value of ['student@std.uestc.edu.cn', 'student@example.com', 'a b']) {
       fill({ 'reset-email': value })

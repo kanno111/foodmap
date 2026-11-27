@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 注册和密码重置验证码的公开 HTTP 接口。
  *
- * <p>Controller 只负责协议转换和参数校验，不读取或接收客户端 IP。当前防刷策略只按校园邮箱执行，
+ * <p>Controller 只负责协议转换和参数校验，不读取或接收客户端 IP。当前防刷策略按规范化邮箱执行，
  * 后续确有攻击流量时再在网关或 Nginx 增加来源级限流。</p>
  */
 @RestController
@@ -23,10 +23,10 @@ public class AuthEmailCodeController {
 
     private final EmailCodeService emailCodeService;
 
-    /** 发送校园邮箱注册验证码。 */
+    /** 校园邮箱可直接请求，个人邮箱需提供绑定该地址的管理员邀请码。 */
     @PostMapping("/register")
     public ApiResponse<Void> sendRegisterCode(@Valid @RequestBody EmailCodeRequest request) {
-        emailCodeService.sendRegistrationCode(request.getEmail());
+        emailCodeService.sendRegistrationCode(request.getEmail(), request.getInviteCode());
         return ApiResponse.ok(null);
     }
 

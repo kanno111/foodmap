@@ -83,6 +83,35 @@
   text-align: center;
 }
 
+.auth-email-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.auth-email-heading .auth-email-toggle {
+  width: auto;
+  margin: 0 0 9px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #875b10;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-email-toggle:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.auth-email-toggle:focus-visible {
+  outline: 2px solid #b67c00;
+  outline-offset: 3px;
+}
+
 :is(form.login-form, form.registration-form, form.password-reset-form) .form-field input,
 form.registration-form .form-field .email-input {
   background-color: #f7f7f5;

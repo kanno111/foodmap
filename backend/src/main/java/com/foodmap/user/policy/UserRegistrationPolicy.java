@@ -11,10 +11,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * 集中执行账号输入规则，保证发送验证码、注册与密码重置使用同一套校园邮箱和密码策略。
- *
- * <p>这些检查属于服务端业务边界。前端即使绕过页面限制直接调用接口，也不能注册非校园邮箱、
- * 非法用户名或过弱密码。数据库唯一约束仍负责并发情况下的最后一道防线。</p>
+ * 集中执行账号邮箱、用户名与密码规则。邀请码校验负责个人邮箱的注册资格。
  */
 @Service
 @RequiredArgsConstructor
@@ -33,12 +30,7 @@ public class UserRegistrationPolicy {
      */
     public String normalizeCampusEmail(String email) {
         String normalized = normalizeEmail(email);
-        int separator = normalized.indexOf('@');
-        if (separator <= 0 || separator != normalized.lastIndexOf('@') || separator == normalized.length() - 1) {
-            throw new BusinessException(UserErrorCode.CAMPUS_EMAIL_REQUIRED);
-        }
-
-        if (!isCampusDomain(normalized.substring(separator + 1))) {
+        if (!hasEmailShape(normalized) || !isCampusEmail(normalized)) {
             throw new BusinessException(UserErrorCode.CAMPUS_EMAIL_REQUIRED);
         }
         return normalized;
@@ -47,24 +39,38 @@ public class UserRegistrationPolicy {
     /** 校友邀请绑定格式已校验的个人邮箱，沿用校园账号的大小写规范。 */
     public String normalizePersonalEmail(String email) {
         String normalized = normalizeEmail(email);
-        int separator = normalized.lastIndexOf('@');
-        if (separator <= 0 || separator == normalized.length() - 1
-                || isCampusDomain(normalized.substring(separator + 1))) {
+        if (!hasEmailShape(normalized) || isCampusEmail(normalized)) {
             throw new BusinessException(UserErrorCode.PERSONAL_EMAIL_REQUIRED);
         }
         return normalized;
     }
 
-    private static String normalizeEmail(String email) {
-        Objects.requireNonNull(email, "email must not be null");
-        return email.trim().toLowerCase(Locale.ROOT);
+    public String normalizeAccountEmail(String email) {
+        String normalized = normalizeEmail(email);
+        if (!hasEmailShape(normalized)) {
+            throw new BusinessException(UserErrorCode.EMAIL_INVALID);
+        }
+        return normalized;
     }
 
-    private boolean isCampusDomain(String domain) {
+    /** 调用方已完成邮箱规范化及格式校验。 */
+    public boolean isCampusEmail(String normalizedEmail) {
+        String domain = normalizedEmail.substring(normalizedEmail.lastIndexOf('@') + 1);
         return properties.getAllowedEmailDomains().stream()
                 .map(String::trim)
                 .map(value -> value.toLowerCase(Locale.ROOT))
                 .anyMatch(domain::equals);
+    }
+
+    private static boolean hasEmailShape(String email) {
+        int separator = email.indexOf('@');
+        return email.length() <= 254 && separator > 0 && separator == email.lastIndexOf('@')
+                && separator < email.length() - 1 && email.chars().noneMatch(Character::isWhitespace);
+    }
+
+    private static String normalizeEmail(String email) {
+        Objects.requireNonNull(email, "email must not be null");
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     /**

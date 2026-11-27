@@ -1,6 +1,6 @@
 # MySQL 表结构
 
-本文集中维护 MySQL 业务表的当前字段、类型、默认值、枚举、主键、索引、外键与字段约束。覆盖截至 V56 的 35 张应用表。V56 新增注册邀请码及使用记录，V55 增加用户禁言时间，V54 增加指定公告收件关系。按下列分组查阅，Flyway 自建的迁移历史表不计入应用表。
+本文集中维护 MySQL 业务表的当前字段、类型、默认值、枚举、主键、索引、外键与字段约束。覆盖截至 V57 的 35 张应用表。V57 更新用户邮箱字段注释，V56 新增注册邀请码及使用记录，V55 增加用户禁言时间。按下列分组查阅，Flyway 自建的迁移历史表不计入应用表。
 
 ## 目录
 
@@ -75,7 +75,7 @@ user模块拥有`users`、`roles`、`user_roles`和`security_audit_events`，分
 | --- | --- | --- | --- |
 | `id` | `bigint unsigned` | 否 | 自增主键，用户ID。 |
 | `username` | `varchar(32)` | 否 | 全局唯一用户名，区分大小写。 |
-| `email` | `varchar(254)` | 否 | 全局唯一邮箱。 |
+| `email` | `varchar(254)` | 否 | 全局唯一的规范化绑定邮箱，支持校园邮箱及获邀校友个人邮箱。V57 更新邮箱及验证时间等字段的注释。 |
 | `password_hash` | `varchar(255)` | 否 | BCrypt密码哈希。 |
 | `email_verified` | `tinyint(1)` | 否 | 默认0；邮箱是否已验证。 |
 | `email_verified_at` | `timestamp(6)` | 是 | 默认NULL；邮箱验证完成时间。 |
@@ -191,7 +191,7 @@ V56 为 `user` 模块新增两张 InnoDB 表，默认字符集为 utf8mb4，排�
 
 索引 `idx_user_invite_redemptions_code_time(invite_code_id, redeemed_at, invitee_user_id)` 支持按码和时间查询。外键 `fk_user_invite_redemptions_invitee` 关联 `users.id`，`fk_user_invite_redemptions_code` 关联 `user_invite_codes.id`。两条外键的删除和更新规则均为 RESTRICT。用户推荐归属通过码的 `owner_user_id` 查询。
 
-注册流程接入时，管理员发码权限和邮箱匹配由服务端校验。一次性码通过同一 MySQL 事务内的条件更新核销，条件包括未撤销、未使用及仍有效，账号与使用记录随事务提交。长期码每次成功注册追加一条记录。邀请码状态及使用记录存于 MySQL，邮件验证码继续由现有 Redis 流程处理。
+管理员发码权限和邮箱匹配由服务端校验。发码及核销使用 MySQL 时钟。一次性码通过注册事务内的条件更新核销，条件包括绑定邮箱精确匹配、未撤销、未使用及仍有效，账号与使用记录随事务提交。长期码每次成功注册追加一条记录。邀请码状态及使用记录存于 MySQL，邮件验证码继续由现有 Redis 流程处理。
 
 <a id="restaurant-schema"></a>
 

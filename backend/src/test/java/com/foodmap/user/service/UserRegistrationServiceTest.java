@@ -12,8 +12,10 @@ import com.foodmap.user.entity.UserRoleEntity;
 import com.foodmap.user.exception.UserErrorCode;
 import com.foodmap.user.exception.VerificationCodeErrorCode;
 import com.foodmap.user.mapper.RoleMapper;
+import com.foodmap.user.mapper.UserInviteCodeMapper;
 import com.foodmap.user.mapper.UserMapper;
 import com.foodmap.user.mapper.UserRoleMapper;
+import com.foodmap.user.policy.UserInviteCodeGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -61,14 +63,16 @@ class UserRegistrationServiceTest {
         properties.setPasswordMinLength(8);
         properties.setPasswordMaxBytes(72);
 
+        var policy = new UserRegistrationPolicy(properties);
         service = new UserRegistrationService(
                 userMapper,
                 roleMapper,
                 userRoleMapper,
                 verificationCodeService,
-                new UserRegistrationPolicy(properties),
+                policy,
                 passwordEncoder,
-                mock(com.foodmap.statistics.service.ActivityContributionService.class)
+                mock(com.foodmap.statistics.service.ActivityContributionService.class),
+                new UserInviteCodeService(mock(UserInviteCodeMapper.class), new UserInviteCodeGenerator(), policy)
         );
     }
 

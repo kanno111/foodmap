@@ -24,6 +24,10 @@ export function emailError(value: string): string | null {
     : '请输入正确的 @std.uestc.edu.cn 学生邮箱'
 }
 
+export function fullEmailError(value: string): string | null {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? null : '请输入完整的邮箱地址'
+}
+
 export function codeError(value: string): string | null {
   return /^[0-9]{6}$/.test(value) ? null : '请输入邮件中的6位数字验证码'
 }
@@ -31,6 +35,7 @@ export function codeError(value: string): string | null {
 /** 服务端明确指出字段时就近展示；未知错误保留在表单底部，不推断账号是否存在。 */
 export function accountErrorField(message: string | null): string | null {
   if (!message) return null
+  if (message.includes('邀请码')) return 'invite'
   if (/验证码|验证代码/.test(message)) return 'code'
   if (/用户名/.test(message) && !/密码|邮箱/.test(message)) return 'username'
   if (/邮箱/.test(message) && !/用户名/.test(message)) return 'email'

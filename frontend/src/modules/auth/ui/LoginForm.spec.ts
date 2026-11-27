@@ -125,7 +125,7 @@ describe('login form', () => {
     expect(host.querySelector<HTMLInputElement>('#login-password')?.value).toBe('')
   })
 
-  async function switchMode(mode: 'username' | 'student') {
+  async function switchMode(mode: 'username' | 'email') {
     host.querySelector<HTMLButtonElement>(`#login-tab-${mode}`)!.click()
     await nextTick()
   }
@@ -137,7 +137,7 @@ describe('login form', () => {
       expiresAt: '2099-01-01T00:00:00Z',
       user: { id: 42, username: 'foodmap_user', roles: ['ROLE_USER'] },
     })
-    await switchMode('student')
+    await switchMode('email')
     await fillAndSubmit(' 001234567890 ', ' secret ')
     await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/'))
     expect(login).toHaveBeenCalledWith({
@@ -146,6 +146,19 @@ describe('login form', () => {
     })
     expect(host.querySelector<HTMLInputElement>('#login-username')?.inputMode).toBe('numeric')
     expect(host.querySelector('#login-email-suffix')?.textContent).toBe('@std.uestc.edu.cn')
+  })
+
+  it('accepts a complete personal email in email login mode', async () => {
+    vi.mocked(login).mockRejectedValue(new Error('登录失败'))
+    await switchMode('email')
+    const toggle = host.querySelector<HTMLButtonElement>('.auth-email-toggle')!
+    expect(toggle.textContent).toContain('使用完整邮箱')
+    toggle.click()
+    await nextTick()
+    expect(host.querySelector('#login-email-suffix')).toBeNull()
+    await fillAndSubmit(' Alumni@Example.com ', 'secret')
+    expect(login).toHaveBeenCalledWith({ username: 'alumni@example.com', password: 'secret' })
+    expect(toggle.textContent).toContain('使用学校邮箱后缀')
   })
 
   it('keeps a numeric username as a username instead of guessing the login method', async () => {
@@ -158,7 +171,7 @@ describe('login form', () => {
   it.each(['', 'student', '123 456', '１２３４５', '123@std.uestc.edu.cn', '1e12'])(
     'rejects invalid student number %j before login',
     async (value) => {
-      await switchMode('student')
+      await switchMode('email')
       await fillAndSubmit(value, 'secret')
       expect(host.querySelector('#login-username-error')?.textContent).toBeTruthy()
       expect(login).not.toHaveBeenCalled()
@@ -167,7 +180,7 @@ describe('login form', () => {
 
   it('rejects email input in username mode rather than selecting an email account silently', async () => {
     await fillAndSubmit('student@std.uestc.edu.cn', 'secret')
-    expect(host.querySelector('#login-username-error')?.textContent).toContain('切换至学号登录')
+    expect(host.querySelector('#login-username-error')?.textContent).toContain('切换至邮箱登录')
     expect(login).not.toHaveBeenCalled()
   })
 
@@ -177,7 +190,7 @@ describe('login form', () => {
     const account = host.querySelector<HTMLInputElement>('#login-username')!
     account.value = 'my_username'
     account.dispatchEvent(new Event('input', { bubbles: true }))
-    await switchMode('student')
+    await switchMode('email')
     expect(account.value).toBe('')
     expect(host.querySelector<HTMLInputElement>('#login-password')?.value).toBe('')
     expect(host.querySelector('#login-username-error')).toBeNull()
@@ -185,7 +198,7 @@ describe('login form', () => {
     account.dispatchEvent(new Event('input', { bubbles: true }))
     await switchMode('username')
     expect(account.value).toBe('my_username')
-    await switchMode('student')
+    await switchMode('email')
     expect(account.value).toBe('001234567890')
   })
 
@@ -195,7 +208,7 @@ describe('login form', () => {
     username.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     await nextTick()
     await nextTick()
-    const student = host.querySelector<HTMLButtonElement>('#login-tab-student')!
+    const student = host.querySelector<HTMLButtonElement>('#login-tab-email')!
     expect(student.getAttribute('aria-selected')).toBe('true')
     expect(document.activeElement).toBe(student)
     student.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
@@ -211,12 +224,12 @@ describe('login form', () => {
         fail = reject
       }),
     )
-    await switchMode('student')
+    await switchMode('email')
     await fillAndSubmit('001234567890', 'secret')
     const username = host.querySelector<HTMLButtonElement>('#login-tab-username')!
     expect(username.disabled).toBe(true)
     username.click()
-    expect(host.querySelector('#login-tab-student')?.getAttribute('aria-selected')).toBe('true')
+    expect(host.querySelector('#login-tab-email')?.getAttribute('aria-selected')).toBe('true')
     fail(new Error('密码错误'))
     await vi.waitFor(() => expect(username.disabled).toBe(false))
     expect(login).toHaveBeenCalledTimes(1)

@@ -46,7 +46,7 @@ public class PasswordResetService {
     @Transactional
     public String resetPasswordAndGetUsername(PasswordResetRequest request) {
         Objects.requireNonNull(request, "request must not be null");
-        String email = registrationPolicy.normalizeCampusEmail(request.getEmail());
+        String email = registrationPolicy.normalizeAccountEmail(request.getEmail());
         registrationPolicy.validatePassword(request.getNewPassword());
         verificationCodeService.consume(VerificationCodePurpose.PASSWORD_RESET, email, request.getVerificationCode());
 

@@ -111,7 +111,7 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 - `GET /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。仅查询本人已经领取的码，尚未领取时返回 200，`data` 为 `{"code":null}`。已领取时 `code` 为 16 字符。
 - `PUT /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。无需请求体，首次调用生成本人推荐码，重复或并发调用返回同一张。返回 200，`data` 含 `code`（16 字符）。推荐码长期有效。
 
-邀请码采用大写字母和数字，接口响应目前只用于领取和复制。注册核销后续接入。未登录返回 401，角色不符返回 403，参数校验失败返回 400，生成多次遇到唯一键冲突时返回 503 `USER_INVITE_CODE_UNAVAILABLE`。
+邀请码采用大写字母和数字，提交时会去掉首尾空白并转换为大写。未登录返回 401，角色不符返回 403，参数校验失败返回 400，生成多次遇到唯一键冲突时返回 503 `USER_INVITE_CODE_UNAVAILABLE`。
 
 <a id="email-codes"></a>
 
@@ -134,11 +134,11 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 **响应**
 
-邮箱必须为有效格式，服务端规范化为小写并检查允许域名，默认仅`std.uestc.edu.cn`。成功200、`data:null`；验证码通过邮件发送，不在响应中返回。
+邮箱必须为有效格式，服务端规范化为小写。校园邮箱可直接申请注册验证码。使用个人邮箱申请注册验证码时，请求另带 `inviteCode`，必须是有效且绑定该邮箱的管理员一次性邀请码。找回密码只按账号绑定且已验证的邮箱处理。成功200、`data:null`；验证码通过邮件发送。
 
 **错误码**
 
-注册验证码：已注册邮箱409 `USER_EMAIL_ALREADY_REGISTERED`。找回密码验证码：未注册但格式和域名有效的邮箱也返回相同成功响应，不发送邮件，不能据此确认账号存在。
+注册验证码：个人邮箱缺少邀请码时返回400 `USER_CAMPUS_EMAIL_REQUIRED`；邀请码无效、过期、撤销、已使用或与邮箱不匹配时返回400 `USER_INVITE_CODE_INVALID`；已注册邮箱409 `USER_EMAIL_ALREADY_REGISTERED`。找回密码验证码：对于不存在、未验证或不可用的账号，格式有效的邮箱也返回相同成功响应。
 
 其他错误：400 `COMMON_VALIDATION_FAILED`、`USER_CAMPUS_EMAIL_REQUIRED`；429 `AUTH_CODE_RESEND_COOLDOWN`、`AUTH_CODE_EMAIL_RATE_LIMITED`；503 `AUTH_CODE_MAIL_DELIVERY_FAILED`、`AUTH_CODE_DELIVERY_STATE_EXPIRED`、`AUTH_CODE_SERVICE_UNAVAILABLE`。邮件受理成功不保证收件箱投递完成。
 
@@ -163,7 +163,8 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 | 字段 | 规则 |
 | --- | --- |
-| `email` | 必填有效校园邮箱，与验证码绑定邮箱一致 |
+| `email` | 必填完整邮箱，与验证码绑定邮箱一致。个人邮箱还须与管理员邀请码绑定地址精确一致 |
+| `inviteCode` | 校园邮箱可选填普通用户的16位长期推荐码。个人邮箱必须填写管理员发放的26位校友邀请码 |
 | `verificationCode` | 必填，严格6位ASCII数字，保留前导零 |
 | `username` | 去首尾空白后1–24字符，中文/英文字母/数字/下划线，区分大小写及重音，唯一 |
 | `password` | 4–32位ASCII字母、数字或英文符号，不含空格、中文或控制字符，不强制组合，不执行trim |
@@ -178,13 +179,13 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 **错误码**
 
-错误：400 `COMMON_VALIDATION_FAILED`、`USER_CAMPUS_EMAIL_REQUIRED`、`USER_USERNAME_INVALID`、`USER_PASSWORD_WEAK`、`AUTH_CODE_INVALID_OR_EXPIRED`；409 `USER_EMAIL_ALREADY_REGISTERED`、`USER_USERNAME_ALREADY_REGISTERED`、`USER_REGISTRATION_CONFLICT`；429 `AUTH_CODE_ATTEMPTS_EXCEEDED`；503 `AUTH_CODE_SERVICE_UNAVAILABLE`。
+错误：400 `COMMON_VALIDATION_FAILED`、`USER_CAMPUS_EMAIL_REQUIRED`、`USER_INVITE_CODE_INVALID`、`USER_USERNAME_INVALID`、`USER_PASSWORD_WEAK`、`AUTH_CODE_INVALID_OR_EXPIRED`；409 `USER_EMAIL_ALREADY_REGISTERED`、`USER_USERNAME_ALREADY_REGISTERED`、`USER_REGISTRATION_CONFLICT`；429 `AUTH_CODE_ATTEMPTS_EXCEEDED`；503 `AUTH_CODE_SERVICE_UNAVAILABLE`。
 
 **副作用与限制**
 
 两者只分配`ROLE_USER`，没有公开管理员注册或提权入口。请求额外附带`role`、`roles`、`isAdmin`会被忽略，不用于授权。确认密码仅由前端比较，不属于接口字段。
 
-邮箱和用户名必须唯一。验证码先消费，再在事务内写入账号及角色；写入失败不会恢复验证码。注册自动登录在账号事务提交后建立会话，后续登录失败返回503 `AUTH_REGISTER_LOGIN_FAILED`，应改用登录，不重复注册。
+邮箱和用户名必须唯一。邮件验证码先消费，管理员码核销、账号、角色和邀请使用记录随同一 MySQL 事务提交。失败时管理员码与账户写入一起回滚，邮件验证码需重新获取。长期码可由多个校园账号使用。注册自动登录在账号事务提交后建立会话，后续登录失败返回503 `AUTH_REGISTER_LOGIN_FAILED`，应改用登录，不重复注册。
 
 <a id="password-reset"></a>
 
@@ -214,7 +215,7 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 
 **副作用与限制**
 
-仅已验证邮箱且状态ACTIVE的账号可改密，其他情况统一`AUTH_CODE_INVALID_OR_EXPIRED`。密码更新和凭证版本递增同事务完成，使所有旧会话在后续认证时失效，不解除停用或登录失败锁定。已消费验证码不因后续故障恢复。
+仅已验证绑定邮箱且状态ACTIVE的账号可改密，支持校园邮箱和个人邮箱，其他情况统一`AUTH_CODE_INVALID_OR_EXPIRED`。密码更新和凭证版本递增同事务完成，使所有旧会话在后续认证时失效，不解除停用或登录失败锁定。已消费验证码不因后续故障恢复。
 
 <a id="sessions"></a>
 
@@ -367,7 +368,7 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 {"username":"清河食客"}
 ```
 
-成功返回 200 和 `Cache-Control: no-store`，data 与[本人资料](#profile)相同。同值重试成功且不会重复写入。改名后按新用户名登录，原会话和学号登录继续有效，已有内容仍关联同一用户 ID。
+成功返回 200 和 `Cache-Control: no-store`，data 与[本人资料](#profile)相同。同值重试成功且不会重复写入。改名后可按新用户名或原绑定邮箱登录，原会话继续有效，已有内容仍关联同一用户 ID。
 
 缺失或空白用户名返回 400 `COMMON_VALIDATION_FAILED`，字符或长度不合规则返回 400 `USER_USERNAME_INVALID`，非字符串或额外 JSON 字段返回 400 `COMMON_MALFORMED_REQUEST`。用户名已被其他账号占用返回 409 `USER_USERNAME_ALREADY_REGISTERED`，由数据库唯一约束处理并发抢占。会话或账号不可用时沿用[本人资料](#profile)的 401。
 

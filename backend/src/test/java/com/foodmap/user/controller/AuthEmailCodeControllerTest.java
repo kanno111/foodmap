@@ -40,7 +40,7 @@ class AuthEmailCodeControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.code").value("OK"));
 
-        verify(emailCodeService).sendRegistrationCode("student@std.uestc.edu.cn");
+        verify(emailCodeService).sendRegistrationCode("student@std.uestc.edu.cn", null);
     }
 
     /** 验证密码重置接口使用独立 Service 方法，并保持相同成功响应。 */
