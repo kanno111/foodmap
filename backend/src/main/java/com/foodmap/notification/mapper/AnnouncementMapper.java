@@ -34,7 +34,8 @@ public interface AnnouncementMapper {
             """)
     int insertRecipients(@Param("id") long id, @Param("ids") List<Long> ids);
 
-    @Select("SELECT user_id FROM notification_announcement_recipients WHERE announcement_id=#{id}")
+    @Select("SELECT user_id FROM notification_announcement_recipients"
+            + " WHERE announcement_id=#{id} ORDER BY user_id")
     List<Long> recipients(long id);
 
     @Select("SELECT EXISTS (SELECT 1 FROM notification_announcement_recipients"

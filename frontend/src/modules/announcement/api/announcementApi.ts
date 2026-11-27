@@ -30,6 +30,9 @@ export interface AnnouncementRecipient {
   id: string
   username: string
 }
+export interface AdminAnnouncementDetail extends AnnouncementDetail {
+  recipients?: { id: string; username: string | null }[]
+}
 export interface AnnouncementRecipientPage {
   records: AnnouncementRecipient[]
   hasNext: boolean
@@ -177,18 +180,42 @@ export async function withdrawAnnouncement(id: string, token: string, signal: Ab
   return result
 }
 /** 用户详情与管理员历史分开固定路径，用户请求不使用管理接口绕过撤回/删除。 */
-async function fetchDetail(id: string, token: string, signal: AbortSignal, management: boolean) {
+async function fetchDetail(
+  id: string,
+  token: string,
+  signal: AbortSignal,
+  management: boolean,
+): Promise<AdminAnnouncementDetail> {
   if (!announcementId(id)) throw invalid()
-  const response = await httpClient.get<ApiResponse<AnnouncementDetail>>(
+  const response = await httpClient.get<ApiResponse<AdminAnnouncementDetail>>(
     `${management ? admin : '/api/me/announcements'}/${id}`,
     options(token, signal),
   )
   if (!response.data.success) throw invalid()
   const result = detail(response.data.data)
   if (result.id !== id || (!management && result.status !== 'PUBLISHED')) throw invalid()
-  return result
+  const recipients = response.data.data.recipients
+  if (!management || recipients === undefined) return result
+  if (
+    !Array.isArray(recipients) ||
+    (result.audience === 'TARGETED'
+      ? recipients.length < 1 || recipients.length > ANNOUNCEMENT_RECIPIENT_LIMIT
+      : recipients.length !== 0) ||
+    recipients.some(
+      (recipient) =>
+        !announcementId(recipient?.id) ||
+        (recipient.username !== null &&
+          (typeof recipient.username !== 'string' || !recipient.username.trim())),
+    ) ||
+    new Set(recipients.map(({ id }) => id)).size !== recipients.length
+  )
+    throw invalid()
+  return { ...result, recipients: recipients.map(({ id, username }) => ({ id, username })) }
 }
-export const fetchAnnouncement = (id: string, token: string, signal: AbortSignal) =>
-  fetchDetail(id, token, signal, false)
+export const fetchAnnouncement = (
+  id: string,
+  token: string,
+  signal: AbortSignal,
+): Promise<AnnouncementDetail> => fetchDetail(id, token, signal, false)
 export const fetchAdminAnnouncement = (id: string, token: string, signal: AbortSignal) =>
   fetchDetail(id, token, signal, true)

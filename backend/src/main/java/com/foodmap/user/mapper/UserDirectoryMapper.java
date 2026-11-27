@@ -30,6 +30,14 @@ public interface UserDirectoryMapper {
 
     @Select("""
             <script>
+            SELECT id, username FROM users WHERE status != 'DELETED' AND id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </script>
+            """)
+    List<UserDirectoryEntry> namesByIds(@Param("ids") List<Long> ids);
+
+    @Select("""
+            <script>
             SELECT id FROM users WHERE status = 'ACTIVE' AND email_verified = TRUE AND id IN
             <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
             ORDER BY id FOR SHARE

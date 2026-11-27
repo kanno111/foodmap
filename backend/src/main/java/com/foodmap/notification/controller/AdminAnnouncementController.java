@@ -58,7 +58,7 @@ public class AdminAnnouncementController {
 
     /** 管理员可读取撤回历史用于核对，用户详情使用独立权限边界。 */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<AnnouncementViews.Detail>> detail(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<AnnouncementViews.AdminDetail>> detail(@PathVariable String id) {
         return response(announcements.adminDetail(id));
     }
 

@@ -10,7 +10,7 @@ import {
   publishAnnouncement,
   withdrawAnnouncement,
   normalizeAnnouncementText,
-  type AnnouncementDetail,
+  type AdminAnnouncementDetail,
   type AnnouncementPage,
   type AnnouncementInput,
   type AnnouncementRecipient,
@@ -24,13 +24,14 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     content = ref(''),
     status = ref<AnnouncementStatus>('ALL')
   const result = ref<AnnouncementPage | null>(null),
-    detail = ref<AnnouncementDetail | null>(null)
+    detail = ref<AdminAnnouncementDetail | null>(null)
   const busy = ref(false),
     loading = ref(false),
     inspecting = ref(false),
     error = ref(''),
     actionError = ref(''),
-    notice = ref('')
+    notice = ref(''),
+    detailError = ref('')
   const pending = ref<AnnouncementInput | null>(null),
     page = ref(1)
   const recipients = ref<AnnouncementRecipient[]>([])
@@ -138,15 +139,22 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     detailAbort = new AbortController()
     detail.value = null
     inspecting.value = true
-    actionError.value = ''
+    detailError.value = ''
     try {
       const value = await fetchAdminAnnouncement(id, actor.token, detailAbort.signal)
       if (valid(actor) && ticket === detailVersion) detail.value = value
     } catch (reason) {
-      if (valid(actor) && ticket === detailVersion) actionError.value = toErrorMessage(reason)
+      if (valid(actor) && ticket === detailVersion) detailError.value = toErrorMessage(reason)
     } finally {
       if (valid(actor) && ticket === detailVersion) inspecting.value = false
     }
+  }
+  function clearDetail() {
+    detailVersion++
+    detailAbort?.abort()
+    detail.value = null
+    detailError.value = ''
+    inspecting.value = false
   }
   async function withdraw(id: string) {
     const actor = identity()
@@ -159,7 +167,7 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
       await withdrawAnnouncement(id, actor.token, writeAbort.signal)
       if (!valid(actor)) return false
       notice.value = '公告已撤回。'
-      detail.value = null
+      clearDetail()
       await load(1)
       return valid(actor)
     } catch (reason) {
@@ -172,15 +180,14 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
   function reset() {
     context++
     version++
-    detailVersion++
     readAbort?.abort()
     writeAbort?.abort()
-    detailAbort?.abort()
+    clearDetail()
     title.value = content.value = error.value = actionError.value = notice.value = ''
     pending.value = null
     recipients.value = []
-    result.value = detail.value = null
-    busy.value = loading.value = inspecting.value = false
+    result.value = null
+    busy.value = loading.value = false
     tab.value = 'publish'
     status.value = 'ALL'
     page.value = 1
@@ -200,6 +207,7 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     busy,
     loading,
     inspecting,
+    detailError,
     error,
     actionError,
     notice,
@@ -211,6 +219,7 @@ export function useAdminAnnouncements({ targetedOnly = false } = {}) {
     load,
     publish,
     inspect,
+    clearDetail,
     withdraw,
   }
 }

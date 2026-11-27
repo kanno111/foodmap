@@ -1,6 +1,7 @@
 package com.foodmap.notification.vo;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +25,13 @@ public final class AnnouncementViews {
     }
 
     public record Recipient(String id, String username) {}
+
+    /** 仅管理员详情返回收件人，删除账号后保留其历史 ID。 */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class AdminDetail extends Detail {
+        private List<Recipient> recipients;
+    }
 
     public record RecipientPage(List<Recipient> records, boolean hasNext) {}
 

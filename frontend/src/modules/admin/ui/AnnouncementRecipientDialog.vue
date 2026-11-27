@@ -10,7 +10,6 @@ import { toErrorMessage } from '@/shared/lib/toErrorMessage'
 
 const emit = defineEmits<{ save: [recipients: AnnouncementRecipient[]] }>()
 const dialog = useTemplateRef('dialog')
-const mode = ref<'all' | 'selected'>('all')
 const keyword = ref('')
 const selected = ref<AnnouncementRecipient[]>([])
 const rows = ref<AnnouncementRecipient[]>([])
@@ -31,7 +30,7 @@ function cancelSearch() {
 async function search(next: number) {
   cancelSearch()
   const token = authToken.value
-  if (!token || !dialog.value?.open || mode.value !== 'selected') return
+  if (!token || !dialog.value?.open) return
   const request = new globalThis.AbortController()
   active = request
   page.value = next
@@ -57,13 +56,13 @@ async function search(next: number) {
 }
 
 watch(
-  [mode, keyword],
+  keyword,
   () => {
     cancelSearch()
     error.value = ''
     rows.value = []
     hasNext.value = false
-    loading.value = !!dialog.value?.open && mode.value === 'selected'
+    loading.value = !!dialog.value?.open
     if (loading.value) timer = globalThis.setTimeout(() => void search(1), 220)
   },
   { flush: 'sync' },
@@ -73,9 +72,8 @@ function open(recipients: AnnouncementRecipient[]) {
   if (!dialog.value || dialog.value.open) return
   selected.value = [...recipients]
   keyword.value = ''
-  mode.value = recipients.length ? 'selected' : 'all'
   dialog.value.showModal()
-  if (mode.value === 'selected') void search(1)
+  void search(1)
 }
 
 function close() {
@@ -99,8 +97,8 @@ function toggle(user: AnnouncementRecipient) {
 }
 
 function save() {
-  if (mode.value === 'selected' && !selected.value.length) return
-  emit('save', mode.value === 'all' ? [] : [...selected.value])
+  if (!selected.value.length) return
+  emit('save', [...selected.value])
   close()
 }
 
@@ -122,102 +120,77 @@ defineExpose({ open })
         <button class="close" type="button" aria-label="关闭选择收件人" @click="close">×</button>
       </header>
       <div class="recipient-content">
-        <div class="recipient-modes" role="group" aria-label="发送范围">
-          <label
-            ><input v-model="mode" type="radio" name="recipient-mode" value="all" />全体用户</label
+        <div class="recipient-search">
+          <span class="search-icon" aria-hidden="true"></span>
+          <input
+            v-model="keyword"
+            type="text"
+            maxlength="64"
+            aria-label="搜索用户名"
+            placeholder="搜索用户名"
+            autocomplete="off"
+          />
+          <button
+            v-if="keyword"
+            class="close"
+            type="button"
+            aria-label="清空搜索"
+            @click="keyword = ''"
           >
-          <label>
-            <input v-model="mode" type="radio" name="recipient-mode" value="selected" />指定用户
-          </label>
+            ×
+          </button>
         </div>
-        <template v-if="mode === 'selected'">
-          <div class="recipient-search">
-            <span class="search-icon" aria-hidden="true"></span>
-            <input
-              v-model="keyword"
-              type="text"
-              maxlength="64"
-              aria-label="搜索用户名"
-              placeholder="搜索用户名"
-              autocomplete="off"
-            />
+        <p v-if="loading" class="recipient-feedback" role="status">正在查找用户…</p>
+        <div v-else-if="error" class="recipient-feedback" role="alert">
+          {{ error }}
+          <button type="button" class="text-button" @click="search(page)">重试</button>
+        </div>
+        <p v-else-if="!rows.length" class="recipient-feedback">没有找到用户</p>
+        <ul v-else class="recipient-results">
+          <li v-for="user in rows" :key="user.id">
+            <label :class="{ checked: isSelected(user.id) }">
+              <span class="recipient-avatar" aria-hidden="true">{{
+                Array.from(user.username)[0]
+              }}</span>
+              <span class="recipient-name">{{ user.username }}</span>
+              <input
+                type="checkbox"
+                :checked="isSelected(user.id)"
+                :disabled="selected.length >= limit && !isSelected(user.id)"
+                @change="toggle(user)"
+              />
+            </label>
+          </li>
+        </ul>
+        <div v-if="!loading && !error && (page > 1 || hasNext)" class="recipient-pages">
+          <button type="button" class="text-button" :disabled="page <= 1" @click="search(page - 1)">
+            上一页
+          </button>
+          <button type="button" class="text-button" :disabled="!hasNext" @click="search(page + 1)">
+            下一页
+          </button>
+        </div>
+        <div v-if="selected.length" class="recipient-selection">
+          <span>已选用户</span>
+          <div class="recipient-chips">
             <button
-              v-if="keyword"
-              class="close"
+              v-for="user in selected"
+              :key="user.id"
               type="button"
-              aria-label="清空搜索"
-              @click="keyword = ''"
+              :aria-label="`移除 ${user.username}`"
+              @click="remove(user.id)"
             >
-              ×
+              {{ user.username }} <span aria-hidden="true">×</span>
             </button>
           </div>
-          <p v-if="loading" class="recipient-feedback" role="status">正在查找用户…</p>
-          <div v-else-if="error" class="recipient-feedback" role="alert">
-            {{ error }}
-            <button type="button" class="text-button" @click="search(page)">重试</button>
-          </div>
-          <p v-else-if="!rows.length" class="recipient-feedback">没有找到用户</p>
-          <ul v-else class="recipient-results">
-            <li v-for="user in rows" :key="user.id">
-              <label :class="{ checked: isSelected(user.id) }">
-                <span class="recipient-avatar" aria-hidden="true">{{
-                  Array.from(user.username)[0]
-                }}</span>
-                <span class="recipient-name">{{ user.username }}</span>
-                <input
-                  type="checkbox"
-                  :checked="isSelected(user.id)"
-                  :disabled="selected.length >= limit && !isSelected(user.id)"
-                  @change="toggle(user)"
-                />
-              </label>
-            </li>
-          </ul>
-          <div v-if="!loading && !error && (page > 1 || hasNext)" class="recipient-pages">
-            <button
-              type="button"
-              class="text-button"
-              :disabled="page <= 1"
-              @click="search(page - 1)"
-            >
-              上一页
-            </button>
-            <button
-              type="button"
-              class="text-button"
-              :disabled="!hasNext"
-              @click="search(page + 1)"
-            >
-              下一页
-            </button>
-          </div>
-          <div v-if="selected.length" class="recipient-selection">
-            <span>已选用户</span>
-            <div class="recipient-chips">
-              <button
-                v-for="user in selected"
-                :key="user.id"
-                type="button"
-                :aria-label="`移除 ${user.username}`"
-                @click="remove(user.id)"
-              >
-                {{ user.username }} <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          </div>
-          <p v-if="selected.length >= limit" class="recipient-feedback" role="status">
-            已达到单次发布的收件人上限。
-          </p>
-        </template>
+        </div>
+        <p v-if="selected.length >= limit" class="recipient-feedback" role="status">
+          已达到单次发布的收件人上限。
+        </p>
       </div>
       <footer>
         <button type="button" @click="close">取消</button>
-        <button
-          class="primary"
-          type="button"
-          :disabled="mode === 'selected' && !selected.length"
-          @click="save"
-        >
+        <button class="primary" type="button" :disabled="!selected.length" @click="save">
           确定
         </button>
       </footer>
@@ -302,19 +275,6 @@ button:disabled {
   min-height: 0;
   overflow: auto;
 }
-.recipient-modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 20px;
-  font-size: 14px;
-}
-.recipient-modes label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-.recipient-modes input,
 .recipient-results input {
   margin: 0;
   width: 16px;

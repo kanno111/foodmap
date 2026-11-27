@@ -125,13 +125,20 @@ public class AnnouncementService {
     /** 管理员读取完整历史，不提供正文修改接口。 */
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
-    public AnnouncementViews.Detail adminDetail(String id) {
+    public AnnouncementViews.AdminDetail adminDetail(String id) {
         admin();
         var row = announcements.find(key(id));
         if (row == null) {
             throw missing();
         }
-        return view(row, false);
+        var result = view(row, false, new AnnouncementViews.AdminDetail());
+        List<Long> recipients = "TARGETED".equals(row.getAudience())
+                ? announcements.recipients(row.getId()) : List.of();
+        var names = users.namesByIds(recipients);
+        result.setRecipients(recipients.stream()
+                .map(userId -> new AnnouncementViews.Recipient(userId.toString(), names.get(userId)))
+                .toList());
+        return result;
     }
 
     /** 首次撤回人及时间永久保留；其他管理员重复撤回也返回同一终态。 */
@@ -308,7 +315,11 @@ public class AnnouncementService {
     }
 
     private AnnouncementViews.Detail view(AnnouncementEntity row, boolean replayed) {
-        var result = new AnnouncementViews.Detail();
+        return view(row, replayed, new AnnouncementViews.Detail());
+    }
+
+    private <T extends AnnouncementViews.Detail> T view(
+            AnnouncementEntity row, boolean replayed, T result) {
         result.setId(row.getId().toString());
         result.setTitle(row.getTitle());
         result.setContent(row.getContent());

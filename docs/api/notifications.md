@@ -230,7 +230,7 @@ review沿用[按作者分组分页](reviews.md#review-list)的currentReview结�
 | POST | `/api/admin/announcements/targeted` | 除UUID、标题和正文外，必须提供recipientUserIds数组，1～100个正Long十进制字符串。服务端去重，任一账号不可用则整笔返回400。返回Detail。 |
 | GET | `/api/admin/announcements/recipients` | keyword默认空，最长64个字符，按用户名子串匹配；page默认1、范围1～1000000。仅查询启用且邮箱已验证的账号。每页最多10条，返回records（每项只含id、username）和hasNext。 |
 | GET | `/api/admin/announcements` | status默认ALL，可选ALL/PUBLISHED/WITHDRAWN；page默认1、范围1～1000000；pageSize默认20、范围1～50。200返回records、total、page、pageSize、totalPages。 |
-| GET | `/api/admin/announcements/{id}` | 正Long十进制ID。200返回Detail，允许核对撤回历史。 |
+| GET | `/api/admin/announcements/{id}` | 正Long十进制ID。200返回Detail并附加 `recipients` 名单，允许核对撤回历史。 |
 | POST | `/api/admin/announcements/{id}/withdraw` | 无请求体。首次与重复撤回均200返回Detail，重复时保留首次撤回人及时间。 |
 
 发布请求示例：
@@ -255,7 +255,7 @@ Detail为统一响应的data：
 
 **副作用与限制**
 
-管理接口均要求有效Bearer及当前数据库ROLE_ADMIN，返回`Cache-Control: no-store`。Detail的audience为ALL或TARGETED，不返回收件人名单。正文按纯文本保存。
+管理接口均要求有效Bearer及当前数据库ROLE_ADMIN，返回`Cache-Control: no-store`。Detail的audience为ALL或TARGETED。只有管理员详情附加 `recipients` 数组，指定公告按用户 ID 返回 `{id, username}`，用户名取当前值，账号删除或查不到时为 null，撤回后仍可核对名单。全体公告返回空数组。正文按纯文本保存。
 
 管理员列表按publishedAt/id倒序，计数与记录同一快照，越界返回空records及真实总数。撤回与个人已读、删除共用公告主行锁，保留首次撤回人和时间。全体公告发布或撤回提交后提示本实例所有在线连接刷新，指定公告只提示收件人的连接。失败回滚不发提示。
 

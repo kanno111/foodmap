@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { httpClient } from '@/shared/api/httpClient'
 import {
   fetchAnnouncement,
+  fetchAdminAnnouncement,
   fetchAdminAnnouncements,
   publishAnnouncement,
   withdrawAnnouncement,
@@ -50,6 +51,26 @@ describe('公告API白名单', () => {
     ).rejects.toThrow()
     get.mockResolvedValue({ data: { success: true, data: row() } })
     await expect(fetchAnnouncement('12', 'token', new AbortController().signal)).rejects.toThrow()
+  })
+  it('只有管理详情保留收件人，允许已删除账号的空用户名并拒绝重复ID', async () => {
+    const recipients = [
+      { id: '11', username: '小林' },
+      { id: '22', username: null },
+    ]
+    const data = { ...row(), audience: 'TARGETED', recipients }
+    const get = vi.spyOn(httpClient, 'get').mockResolvedValue({ data: { success: true, data } })
+    const signal = new AbortController().signal
+    await expect(fetchAdminAnnouncement(data.id, 'admin', signal)).resolves.toHaveProperty(
+      'recipients',
+      recipients,
+    )
+    await expect(fetchAnnouncement(data.id, 'user', signal)).resolves.not.toHaveProperty(
+      'recipients',
+    )
+    get.mockResolvedValue({
+      data: { success: true, data: { ...data, recipients: [recipients[0], recipients[0]] } },
+    })
+    await expect(fetchAdminAnnouncement(data.id, 'admin', signal)).rejects.toThrow()
   })
   it('发布保持请求UUID且核验回执正文，错误回执不能误判成功', async () => {
     const post = vi

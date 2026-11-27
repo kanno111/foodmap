@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLoginStore } from '@/modules/auth'
 import { clearAccessToken } from '@/shared/api/authSession'
 import { mockDialog } from '@/shared/test/mockDialog'
-import { searchAnnouncementRecipients } from '@/modules/announcement'
+import {
+  fetchAdminAnnouncement,
+  fetchAdminAnnouncements,
+  searchAnnouncementRecipients,
+  type AdminAnnouncementDetail,
+} from '@/modules/announcement'
 import AdminAnnouncementWorkspace from './AdminAnnouncementWorkspace.vue'
 
 vi.mock('../api/restaurantRequestsApi', () => ({
@@ -14,6 +19,8 @@ vi.mock('../api/restaurantRequestsApi', () => ({
 vi.mock('@/modules/announcement', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/modules/announcement')>()),
   searchAnnouncementRecipients: vi.fn(),
+  fetchAdminAnnouncements: vi.fn(),
+  fetchAdminAnnouncement: vi.fn(),
 }))
 
 describe('公告编辑', () => {
@@ -48,7 +55,10 @@ describe('公告编辑', () => {
           component: AdminAnnouncementWorkspace,
           props: { username: '管理员', loggingOut: false, sessionError: null },
         },
-        { path: '/admin/reviews', component: { template: '<div />' } },
+        ...['reviews', 'reports', 'restaurants', 'users', 'activity'].map((name) => ({
+          path: `/admin/${name}`,
+          component: { template: '<div />' },
+        })),
       ],
     })
     await router.push('/admin/announcements')
@@ -85,14 +95,11 @@ describe('公告编辑', () => {
     }))
     await mountWorkspace()
     const range = host.querySelector<HTMLElement>('.announcement-audience')!
-    const change = range.querySelector('button')!
-    expect(range.textContent).toContain('全体用户')
-    change.click()
+    expect(range.querySelector<HTMLInputElement>('input[value="ALL"]')!.checked).toBe(true)
+    range.querySelector<HTMLInputElement>('input[value="TARGETED"]')!.click()
+    await nextTick()
     const picker = host.querySelector<HTMLDialogElement>('.recipient-dialog')!
     expect(picker.open).toBe(true)
-    expect(picker.querySelector<HTMLInputElement>('input[value="all"]')!.checked).toBe(true)
-    picker.querySelector<HTMLInputElement>('input[value="selected"]')!.click()
-    await nextTick()
     const save = picker.querySelector<HTMLButtonElement>('footer .primary')!
     expect(save.disabled).toBe(true)
     await vi.waitFor(() => expect(picker.textContent).toContain('林小北'))
@@ -110,14 +117,74 @@ describe('公告编辑', () => {
     await nextTick()
     expect(picker.open).toBe(false)
     expect(range.textContent).toContain('指定用户')
-    expect(range.textContent).toContain('林小北、雨后米线')
-    expect(host.querySelector('button[type="submit"]')?.textContent).toBe('发布公告')
+    expect(
+      [...range.querySelectorAll('.audience-names li')].map((item) => item.textContent),
+    ).toEqual(['林小北', '雨后米线'])
+    expect(host.querySelector('button[type="submit"]')?.textContent?.trim()).toBe('发布公告')
 
-    change.click()
+    range.querySelector<HTMLButtonElement>('button')!.click()
     await nextTick()
-    picker.querySelector<HTMLInputElement>('input[value="all"]')!.click()
     picker.querySelector<HTMLButtonElement>('button[aria-label="关闭选择收件人"]')!.click()
     await nextTick()
-    expect(range.textContent).toContain('林小北、雨后米线')
+    expect(range.textContent).toContain('已选 2 人')
+    range.querySelector<HTMLInputElement>('input[value="ALL"]')!.click()
+    await nextTick()
+    expect(range.querySelector('.audience-names')).toBeNull()
+  })
+
+  it('指定公告显示历史收件人及不可用账号，关闭后保留记录列表', async () => {
+    const targeted: AdminAnnouncementDetail = {
+      id: '45',
+      title: '指定公告',
+      content: '正文',
+      audience: 'TARGETED',
+      status: 'WITHDRAWN',
+      publishedBy: '22',
+      publishedAt: '2026-11-27T00:00:00Z',
+      withdrawnBy: '22',
+      withdrawnAt: '2026-11-28T00:00:00Z',
+      replayed: false,
+      recipients: [
+        { id: '11', username: '小林' },
+        { id: '22', username: null },
+      ],
+    }
+    const all: AdminAnnouncementDetail = {
+      ...targeted,
+      id: '46',
+      title: '全体公告',
+      audience: 'ALL',
+      recipients: [],
+    }
+    vi.mocked(fetchAdminAnnouncements).mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      totalPages: 1,
+      records: [targeted, all],
+    })
+    vi.mocked(fetchAdminAnnouncement).mockImplementation(async (id) =>
+      id === targeted.id ? targeted : all,
+    )
+    await mountWorkspace()
+    host.querySelectorAll<HTMLButtonElement>('.announcement-tabs button')[1]!.click()
+    const button = () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="查看公告详情：指定公告"]')!
+    await vi.waitFor(() => expect(button()).not.toBeNull())
+    button().click()
+    const detail = host.querySelector<HTMLDialogElement>('.record-detail')!
+    await vi.waitFor(() => expect(detail.textContent).toContain('收件人（2 人）'))
+    expect(
+      [...detail.querySelectorAll('.record-recipients li')].map((item) => item.textContent?.trim()),
+    ).toEqual(['小林', '账号不可用 · ID 22'])
+    detail.querySelector<HTMLButtonElement>('.dialog-close')!.click()
+    await nextTick()
+    expect(detail.open).toBe(false)
+    expect(host.querySelectorAll('tbody tr')).toHaveLength(2)
+    expect(document.activeElement).toBe(button())
+
+    host.querySelector<HTMLButtonElement>('[aria-label="查看公告详情：全体公告"]')!.click()
+    await vi.waitFor(() => expect(detail.querySelector('h3')?.textContent).toBe('全体公告'))
+    expect(detail.querySelector('.record-recipients')).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 package com.foodmap.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
@@ -251,6 +252,39 @@ class AnnouncementApiIntegrationTest {
         org.mockito.Mockito.verify(streams).changed(11);
         org.mockito.Mockito.verify(streams).changed(22);
         org.mockito.Mockito.verifyNoMoreInteractions(streams);
+    }
+
+    @Test
+    void onlyAdministratorDetailIncludesHistoricalRecipients() throws Exception {
+        var requestId = id(publishTargeted(other, UUID.randomUUID(), List.of("22", "11"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.recipients").doesNotExist()));
+        var adminPath = "/api/admin/announcements/" + requestId;
+        mvc.perform(get(adminPath).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/me/announcements/" + requestId).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recipients").doesNotExist());
+        mvc.perform(get("/api/admin/announcements").header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].recipients").doesNotExist());
+        jdbc.update("UPDATE users SET username='renamed_notice' WHERE id=11");
+        withdraw(Long.parseLong(requestId)).andExpect(status().isOk());
+        mvc.perform(get(adminPath).header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("WITHDRAWN"))
+                .andExpect(jsonPath("$.data.recipients.length()").value(2))
+                .andExpect(jsonPath("$.data.recipients[0].id").value("11"))
+                .andExpect(jsonPath("$.data.recipients[0].username").value("renamed_notice"))
+                .andExpect(jsonPath("$.data.recipients[1].username").value("notice_22"));
+        jdbc.update("UPDATE users SET status='DELETED' WHERE id=11");
+        mvc.perform(get(adminPath).header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recipients[0].id").value("11"))
+                .andExpect(jsonPath("$.data.recipients[0].username").value(nullValue()));
+        var allId = id(publish(other, UUID.randomUUID(), "标题", "正文").andExpect(status().isOk()));
+        mvc.perform(get("/api/admin/announcements/" + allId).header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recipients.length()").value(0));
     }
 
     @Test
