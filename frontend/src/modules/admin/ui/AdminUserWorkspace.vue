@@ -4,11 +4,16 @@ import { authToken } from '@/shared/api/authSession'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
 import UserAvatar from '@/modules/account/ui/UserAvatar.vue'
 import {
+  ANNOUNCEMENT_RECIPIENT_LIMIT as recipientLimit,
+  type AnnouncementRecipient,
+} from '@/modules/announcement'
+import {
   fetchAdminUsers,
   setAdminUserMuted,
   type AdminUser,
   type AdminUserPage,
 } from '../api/adminUsersApi'
+import { useAdminAnnouncements } from '../model/useAdminAnnouncements'
 import AdminHeader from './AdminHeader.vue'
 import AdminSidebar from './AdminSidebar.vue'
 
@@ -27,6 +32,36 @@ const muteDialog = useTemplateRef('muteDialog')
 const selected = ref<AdminUser | null>(null)
 const updatingMute = ref(false)
 const muteError = ref('')
+const announcementDialog = useTemplateRef('announcementDialog')
+const openAnnouncementButton = useTemplateRef('openAnnouncementButton')
+const searchInput = useTemplateRef('searchInput')
+const selectedRecipients = ref(new Map<string, AnnouncementRecipient>())
+// 保留仍完整的全选批次，翻页后打开弹窗也只显示收件人数。
+let bulkPages: string[][] = []
+const summarizeRecipients = ref(false)
+const announcement = useAdminAnnouncements({ targetedOnly: true })
+const {
+  title: announcementTitle,
+  content: announcementContent,
+  recipients,
+  pending: pendingAnnouncement,
+  busy: sendingAnnouncement,
+  validForm: validAnnouncement,
+  actionError: announcementError,
+  notice: announcementNotice,
+} = announcement
+const selectionLocked = computed(() => sendingAnnouncement.value || !!pendingAnnouncement.value)
+const visibleUsers = computed(() => result.value?.records ?? [])
+const selectedCount = computed(() => selectedRecipients.value.size)
+const selectedOnPage = computed(
+  () => visibleUsers.value.filter(({ id }) => selectedRecipients.value.has(id)).length,
+)
+const pageFullySelected = computed(
+  () => visibleUsers.value.length > 0 && selectedOnPage.value === visibleUsers.value.length,
+)
+const pageSelectionExceedsLimit = computed(
+  () => selectedCount.value + visibleUsers.value.length - selectedOnPage.value > recipientLimit,
+)
 const number = new Intl.NumberFormat('zh-CN')
 const pageNumbers = computed(() => {
   const total = Math.min(result.value?.totalPages ?? 0, 1_000_000)
@@ -63,6 +98,59 @@ async function load(next = page.value) {
 function search() {
   keyword.value = input.value.trim()
   void load(1)
+}
+
+function clearSelection() {
+  selectedRecipients.value.clear()
+  bulkPages = []
+}
+
+function selectUsers(users: AdminUser[], checked: boolean) {
+  if (selectionLocked.value) return
+  if (checked) {
+    const toAdd = users.filter(({ id }) => !selectedRecipients.value.has(id))
+    if (selectedCount.value + toAdd.length > recipientLimit) return
+    for (const { id, username } of toAdd) selectedRecipients.value.set(id, { id, username })
+  } else {
+    for (const { id } of users) selectedRecipients.value.delete(id)
+    bulkPages = bulkPages.filter((ids) => ids.every((id) => selectedRecipients.value.has(id)))
+  }
+}
+
+function selectPage(checked: boolean) {
+  selectUsers(visibleUsers.value, checked)
+  if (checked && pageFullySelected.value) bulkPages.push(visibleUsers.value.map(({ id }) => id))
+}
+
+function openAnnouncement() {
+  if (!selectedCount.value || announcementDialog.value?.open) return
+  if (!pendingAnnouncement.value) {
+    recipients.value = [...selectedRecipients.value.values()]
+    summarizeRecipients.value =
+      bulkPages.length > 0 || (visibleUsers.value.length > 1 && pageFullySelected.value)
+  }
+  announcementNotice.value = ''
+  announcementDialog.value?.showModal()
+}
+
+function closeAnnouncement() {
+  if (sendingAnnouncement.value) return
+  announcementDialog.value?.close()
+  if (!pendingAnnouncement.value) {
+    announcementTitle.value = ''
+    announcementContent.value = ''
+    announcementError.value = ''
+    recipients.value = []
+  }
+  openAnnouncementButton.value?.focus({ preventScroll: true })
+}
+
+async function sendAnnouncement() {
+  if (!(await announcement.publish())) return
+  announcementDialog.value?.close()
+  clearSelection()
+  await nextTick()
+  searchInput.value?.focus({ preventScroll: true })
 }
 
 async function confirmMute(user: AdminUser) {
@@ -107,12 +195,15 @@ watch(
     muteRequest?.abort()
     updatingMute.value = false
     closeMute()
+    announcementDialog.value?.close()
+    clearSelection()
   },
   { flush: 'sync' },
 )
 onBeforeUnmount(() => {
   request?.abort()
   muteRequest?.abort()
+  announcementDialog.value?.close()
 })
 </script>
 
@@ -131,6 +222,7 @@ onBeforeUnmount(() => {
               <path d="m15 15 4 4" />
             </svg>
             <input
+              ref="searchInput"
               v-model="input"
               type="search"
               maxlength="32"
@@ -140,18 +232,67 @@ onBeforeUnmount(() => {
           </label>
           <button class="primary" type="submit">查询</button>
         </form>
+        <p v-if="announcementNotice" class="announcement-notice" role="status">
+          {{ announcementNotice }}
+        </p>
+        <div v-if="selectedCount" class="announcement-selection">
+          <div class="selection-summary">
+            <strong role="status">已选 {{ selectedCount }} 人</strong>
+            <button type="button" :disabled="selectionLocked" @click="clearSelection">
+              清空选择
+            </button>
+            <span v-if="pageSelectionExceedsLimit || selectedCount === recipientLimit">
+              每次最多选择 {{ recipientLimit }} 人
+            </span>
+          </div>
+          <button
+            ref="openAnnouncementButton"
+            class="announcement-primary"
+            type="button"
+            aria-haspopup="dialog"
+            @click="openAnnouncement"
+          >
+            {{ pendingAnnouncement ? '重试发系统公告' : '发系统公告' }}
+          </button>
+        </div>
         <section class="results" aria-label="用户列表" :aria-busy="loading">
           <table>
             <thead>
               <tr>
+                <th scope="col" class="user-select">
+                  <input
+                    type="checkbox"
+                    aria-label="选择本页用户"
+                    :checked="pageFullySelected"
+                    :indeterminate.prop="selectedOnPage > 0 && !pageFullySelected"
+                    :disabled="selectionLocked || !visibleUsers.length || pageSelectionExceedsLimit"
+                    @change="selectPage(($event.target as HTMLInputElement).checked)"
+                  />
+                </th>
                 <th scope="col">用户</th>
-                <th scope="col">点评数</th>
-                <th scope="col">投稿审核通过数</th>
+                <th scope="col" class="user-metric">点评数</th>
+                <th scope="col" class="user-metric user-submissions">投稿审核通过数</th>
                 <th scope="col" class="user-action">操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="user in result?.records" :key="user.id">
+              <tr
+                v-for="user in visibleUsers"
+                :key="user.id"
+                :class="{ 'recipient-selected': selectedRecipients.has(user.id) }"
+              >
+                <td class="user-select">
+                  <input
+                    type="checkbox"
+                    :aria-label="`选择 ${user.username}`"
+                    :checked="selectedRecipients.has(user.id)"
+                    :disabled="
+                      selectionLocked ||
+                      (selectedCount >= recipientLimit && !selectedRecipients.has(user.id))
+                    "
+                    @change="selectUsers([user], ($event.target as HTMLInputElement).checked)"
+                  />
+                </td>
                 <td>
                   <div class="user">
                     <UserAvatar
@@ -164,8 +305,10 @@ onBeforeUnmount(() => {
                     </span>
                   </div>
                 </td>
-                <td>{{ number.format(user.reviewCount) }}</td>
-                <td>{{ number.format(user.approvedSubmissionCount) }}</td>
+                <td class="user-metric">{{ number.format(user.reviewCount) }}</td>
+                <td class="user-metric user-submissions">
+                  {{ number.format(user.approvedSubmissionCount) }}
+                </td>
                 <td class="user-action">
                   <button
                     v-if="user.canModerate"
@@ -273,6 +416,68 @@ onBeforeUnmount(() => {
           </button>
         </footer>
       </template>
+    </dialog>
+    <dialog
+      ref="announcementDialog"
+      class="user-announcement-dialog"
+      aria-labelledby="user-announcement-title"
+      @cancel.prevent="closeAnnouncement"
+    >
+      <form @submit.prevent="sendAnnouncement">
+        <header>
+          <h2 id="user-announcement-title">发系统公告</h2>
+          <button
+            class="close-announcement"
+            type="button"
+            aria-label="关闭系统公告"
+            :disabled="sendingAnnouncement"
+            @click="closeAnnouncement"
+          >
+            ×
+          </button>
+        </header>
+        <div class="user-announcement-fields">
+          <div class="announcement-recipients">
+            <strong>收件人（{{ recipients.length }} 人）</strong>
+            <ul v-if="!summarizeRecipients" aria-label="收件人名单">
+              <li v-for="recipient in recipients" :key="recipient.id">{{ recipient.username }}</li>
+            </ul>
+          </div>
+          <label>
+            公告标题
+            <input v-model="announcementTitle" required autofocus :readonly="selectionLocked" />
+            <small v-if="Array.from(announcementTitle).length > 120" class="alert">
+              标题超过120字
+            </small>
+          </label>
+          <label>
+            公告正文
+            <textarea v-model="announcementContent" required :readonly="selectionLocked" />
+            <small v-if="Array.from(announcementContent).length > 10000" class="alert">
+              正文超过10000字
+            </small>
+          </label>
+          <p v-if="announcementError" class="alert" role="alert">{{ announcementError }}</p>
+        </div>
+        <footer>
+          <button type="button" :disabled="sendingAnnouncement" @click="closeAnnouncement">
+            取消
+          </button>
+          <button
+            class="announcement-primary"
+            type="submit"
+            :disabled="sendingAnnouncement || (!pendingAnnouncement && !validAnnouncement)"
+          >
+            {{
+              sendingAnnouncement
+                ? '正在发送…'
+                : pendingAnnouncement
+                  ? '重试发送'
+                  : `发送给 ${recipients.length} 位用户`
+            }}
+          </button>
+        </footer>
+      </form>
     </dialog>
   </div>
 </template>

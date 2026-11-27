@@ -65,7 +65,8 @@ button {
 button:hover:enabled {
   background: var(--admin-surface-hover);
 }
-.toolbar .primary {
+.toolbar .primary,
+.announcement-primary {
   flex: none;
   min-width: 72px;
   padding: 0 16px;
@@ -73,6 +74,47 @@ button:hover:enabled {
   background: var(--admin-primary);
   color: white;
   font-weight: 600;
+}
+.announcement-primary {
+  min-height: 36px;
+  white-space: nowrap;
+}
+button.announcement-primary:hover:enabled {
+  background: var(--admin-primary-hover);
+}
+.announcement-selection {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-accent-hover);
+  border-radius: 8px;
+  background: var(--admin-accent-subtle);
+}
+.selection-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  color: var(--admin-accent-text);
+  font-size: 13px;
+}
+.selection-summary button {
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.selection-summary span {
+  color: var(--admin-secondary);
+}
+.announcement-notice {
+  margin: 0 0 12px;
+  color: var(--admin-success);
 }
 .results {
   overflow: hidden;
@@ -102,10 +144,25 @@ td {
   border-top: 1px solid var(--admin-divider);
   font-variant-numeric: tabular-nums;
 }
-th:nth-child(n + 2),
-td:nth-child(n + 2) {
+.user-metric,
+.user-action {
   width: 22%;
   text-align: right;
+}
+.user-select {
+  width: 47px;
+  padding: 0;
+  text-align: center;
+}
+.user-select input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  vertical-align: middle;
+  accent-color: var(--admin-primary);
+}
+.recipient-selected {
+  background: var(--admin-accent-subtle);
 }
 th.user-action,
 td.user-action {
@@ -264,6 +321,118 @@ td.user-action {
   opacity: 0.55;
   cursor: default;
 }
+.user-announcement-dialog {
+  box-sizing: border-box;
+  width: min(480px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  box-shadow: 0 12px 36px var(--admin-shadow);
+}
+.user-announcement-dialog::backdrop {
+  background: var(--admin-backdrop);
+}
+.user-announcement-dialog header,
+.user-announcement-dialog footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+}
+.user-announcement-dialog header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--admin-divider);
+}
+.user-announcement-dialog h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.close-announcement {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 23px;
+  line-height: 1;
+}
+.user-announcement-fields {
+  display: grid;
+  gap: 15px;
+  padding: 16px;
+}
+.user-announcement-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.user-announcement-fields input,
+.user-announcement-fields textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--admin-border);
+  border-radius: 7px;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+.user-announcement-fields textarea {
+  min-height: 116px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.user-announcement-fields p {
+  margin: 0;
+}
+.announcement-recipients strong {
+  display: block;
+  font-size: 13px;
+}
+.announcement-recipients ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 104px;
+  overflow: auto;
+  margin: 7px 0 0;
+  padding: 8px;
+  border: 1px solid var(--admin-border);
+  border-radius: 7px;
+  background: var(--admin-surface-muted);
+  list-style: none;
+}
+.announcement-recipients li {
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.user-announcement-dialog footer {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  border-top: 1px solid var(--admin-divider);
+}
+.user-announcement-dialog footer button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+.user-announcement-dialog button:disabled,
+.announcement-selection button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 @media (max-width: 800px) {
   .user-shell {
     grid-template-columns: minmax(0, 1fr);
@@ -287,13 +456,14 @@ td.user-action {
     padding: 0 8px;
     font-size: 12px;
   }
-  th:nth-child(3),
-  td:nth-child(3) {
-    width: 29%;
+  .user-select {
+    width: 28px;
   }
-  th:nth-child(2),
-  td:nth-child(2) {
-    width: 16%;
+  .user-metric {
+    width: 17%;
+  }
+  .user-submissions {
+    width: 24%;
   }
   th.user-action,
   td.user-action {

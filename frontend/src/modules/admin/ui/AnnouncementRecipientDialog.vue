@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
-import { searchAnnouncementRecipients, type AnnouncementRecipient } from '@/modules/announcement'
+import {
+  ANNOUNCEMENT_RECIPIENT_LIMIT,
+  searchAnnouncementRecipients,
+  type AnnouncementRecipient,
+} from '@/modules/announcement'
 import { authToken } from '@/shared/api/authSession'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
 
@@ -14,7 +18,7 @@ const page = ref(1)
 const hasNext = ref(false)
 const loading = ref(false)
 const error = ref('')
-const limit = 100
+const limit = ANNOUNCEMENT_RECIPIENT_LIMIT
 let timer: ReturnType<typeof globalThis.setTimeout> | undefined
 let active: InstanceType<typeof globalThis.AbortController> | undefined
 

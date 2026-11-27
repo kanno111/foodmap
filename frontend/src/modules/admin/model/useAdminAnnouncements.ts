@@ -17,7 +17,7 @@ import {
   type AnnouncementStatus,
 } from '@/modules/announcement'
 /** 公告发布与记录共用身份上下文；换号取消在途请求并丢弃旧账号全部草稿和回执。 */
-export function useAdminAnnouncements() {
+export function useAdminAnnouncements({ targetedOnly = false } = {}) {
   const auth = useLoginStore()
   const tab = ref<'publish' | 'records'>('publish'),
     title = ref(''),
@@ -80,6 +80,7 @@ export function useAdminAnnouncements() {
   async function publish() {
     const actor = identity()
     if (!actor || busy.value || (!pending.value && !validForm.value)) return false
+    if (targetedOnly && !(pending.value?.recipientUserIds ?? recipients.value).length) return false
     pending.value ??= {
       clientRequestId: createRequestId(),
       title: normalizeAnnouncementText(title.value),
@@ -103,11 +104,14 @@ export function useAdminAnnouncements() {
       title.value = ''
       content.value = ''
       recipients.value = []
-      tab.value = 'records'
-      status.value = 'ALL'
       notice.value =
         receipt.status === 'WITHDRAWN' ? '已确认原公告已撤回，未重新发布。' : '公告已发布。'
-      await load(1)
+      // 用户管理入口提交后留在原列表，由调用方关闭弹窗。
+      if (!targetedOnly) {
+        tab.value = 'records'
+        status.value = 'ALL'
+        await load(1)
+      }
       return valid(actor)
     } catch (reason) {
       if (valid(actor)) {

@@ -34,6 +34,7 @@ export interface AnnouncementRecipientPage {
   records: AnnouncementRecipient[]
   hasNext: boolean
 }
+export const ANNOUNCEMENT_RECIPIENT_LIMIT = 100
 export const announcementId = (id: unknown): id is string =>
   typeof id === 'string' && /^[1-9]\d{0,18}$/.test(id) && BigInt(id) <= 9223372036854775807n
 export const normalizeAnnouncementText = (s: string) => s.replace(/\r\n?/g, '\n').trim()
