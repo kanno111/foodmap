@@ -6,7 +6,10 @@ const invite = defineModel<string>({ required: true })
 
 <template>
   <div class="form-field">
-    <label for="register-invite">{{ alumni ? '校友邀请码' : '邀请码（选填）' }}</label>
+    <div class="invite-field-heading">
+      <label for="register-invite">{{ alumni ? '校友邀请码' : '邀请码（选填）' }}</label>
+      <span v-if="alumni" id="register-invite-contact">（联系qq1010958435获取邀请码）</span>
+    </div>
     <input
       id="register-invite"
       v-model="invite"
@@ -19,7 +22,11 @@ const invite = defineModel<string>({ required: true })
       :disabled="disabled"
       :aria-required="alumni || undefined"
       :aria-invalid="!!error"
-      :aria-describedby="error ? 'register-invite-error' : undefined"
+      :aria-describedby="
+        [alumni && 'register-invite-contact', error && 'register-invite-error']
+          .filter(Boolean)
+          .join(' ') || undefined
+      "
       @blur="$emit('blur')"
     />
     <p v-if="error" id="register-invite-error" class="field-error" role="alert">{{ error }}</p>
@@ -27,11 +34,19 @@ const invite = defineModel<string>({ required: true })
 </template>
 
 <style scoped>
-label {
-  display: block;
+.invite-field-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   margin-bottom: 9px;
+}
+label {
   font-size: 14px;
   font-weight: 800;
+}
+#register-invite-contact {
+  color: #6e6a61;
+  font-size: 13px;
 }
 input {
   width: 100%;

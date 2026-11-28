@@ -56,6 +56,7 @@ describe('注册方式', () => {
 
   it.each(['', 'k7m4p9txw2c8n6rd'])('学生注册允许留空或填写推荐码 %s', async (code) => {
     expect(host.querySelector('label[for=register-invite]')?.textContent).toBe('邀请码（选填）')
+    expect(host.querySelector('#register-invite-contact')).toBeNull()
     fill({ email: '001234', invite: code })
     await submit()
     expect(register).toHaveBeenCalledWith(
@@ -73,6 +74,9 @@ describe('注册方式', () => {
     await nextTick()
     expect(host.querySelector('#email-suffix')).toBeNull()
     expect(host.querySelector('label[for=register-invite]')?.textContent).toBe('校友邀请码')
+    expect(host.querySelector('#register-invite-contact')?.textContent).toBe(
+      '（联系qq1010958435获取邀请码）',
+    )
     const send = host.querySelector<HTMLButtonElement>('.code-button')!
     fill({ email: 'Alumni@example.com' })
     send.click()
