@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLink from '@/shared/ui/AppLink.vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import RestaurantDeleteDialog from '@/modules/restaurant/ui/RestaurantDeleteDialog.vue'
 import type { RestaurantManagement } from '@/modules/restaurant/api/restaurantApi'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute } from 'vue-router'
@@ -41,6 +41,9 @@ const {
 } = useAdminRestaurants(enabled)
 
 const deleteTarget = ref<{ id: string; name: string } | null>(null)
+const failedPhotoUrls = ref(new Set<string>())
+watch(items, () => failedPhotoUrls.value.clear())
+
 function removed(result: RestaurantManagement) {
   notice.value = `「${result.restaurant.name}」已删除。`
   void reload()
@@ -164,6 +167,7 @@ onBeforeRouteUpdate(() => !busy.value)
                   <th>分类 / 类型</th>
                   <th>人均</th>
                   <th>经营状态</th>
+                  <th scope="col" class="merchant-photo-state desktop-only">商户照片</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -182,7 +186,10 @@ onBeforeRouteUpdate(() => !busy.value)
                       ><template v-if="item.price !== null"
                         ><span class="meta-separator" aria-hidden="true">·</span
                         ><span>¥{{ item.price }} / 人</span></template
-                      ></span
+                      ><span class="meta-separator" aria-hidden="true">·</span
+                      ><span class="mobile-photo-state" :class="{ 'has-photo': item.coverPhoto }">{{
+                        item.coverPhoto ? '有照片' : '无照片'
+                      }}</span></span
                     >
                   </td>
                   <td class="desktop-only">
@@ -198,6 +205,22 @@ onBeforeRouteUpdate(() => !busy.value)
                         item.closed ? '停业' : '营业'
                       }}</span></span
                     >
+                  </td>
+                  <td class="merchant-photo-state desktop-only">
+                    <img
+                      v-if="item.coverPhoto && !failedPhotoUrls.has(item.coverPhoto.url)"
+                      class="merchant-photo-thumbnail"
+                      :src="item.coverPhoto.url"
+                      alt="商户相册封面"
+                      width="64"
+                      height="48"
+                      loading="lazy"
+                      decoding="async"
+                      @error="item.coverPhoto && failedPhotoUrls.add(item.coverPhoto.url)"
+                    />
+                    <span v-else class="merchant-photo-caption">{{
+                      item.coverPhoto ? '加载失败' : '无照片'
+                    }}</span>
                   </td>
                   <td class="actions">
                     <AppLink :to="`/admin/restaurants/${item.id}/edit`">编辑</AppLink
@@ -433,7 +456,20 @@ td {
   border-bottom: 1px solid var(--admin-divider);
 }
 td:first-child {
-  width: 42%;
+  width: 39%;
+}
+.merchant-photo-state {
+  width: 104px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.merchant-photo-thumbnail {
+  object-fit: cover;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+.merchant-photo-caption {
+  color: var(--admin-secondary);
 }
 td small {
   display: block;
@@ -717,6 +753,13 @@ select:focus-visible {
   .mobile-meta > span:first-child {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .mobile-photo-state {
+    flex: none;
+  }
+  .mobile-photo-state.has-photo {
+    color: var(--admin-text);
+    font-weight: 600;
   }
   .meta-separator {
     color: #b1b8c1;
