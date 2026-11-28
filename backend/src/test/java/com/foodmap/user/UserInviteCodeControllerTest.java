@@ -93,13 +93,14 @@ class UserInviteCodeControllerTest {
 
     @Test
     void administratorCanReadStatusAndRevokeAnInvite() throws Exception {
-        var record = new UserInviteViews.AdminRecord("101", null, "alumnus", AdminInviteStatus.USED,
+        var record = new UserInviteViews.AdminRecord("101", null, "alumnus", "9223372036854775806", AdminInviteStatus.USED,
                 Instant.EPOCH, Instant.EPOCH.plusSeconds(7));
         when(invites.listAdminCodes(AdminInviteStatus.USED, 1))
                 .thenReturn(new UserInviteViews.AdminPage(List.of(record), false));
         mvc.perform(get(ADMIN_ENDPOINT).with(actor("11", "ROLE_ADMIN")).param("status", "USED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].registeredUsername").value("alumnus"))
+                .andExpect(jsonPath("$.data.records[0].registeredUserId").value("9223372036854775806"))
                 .andExpect(jsonPath("$.data.records[0].code").doesNotExist());
         mvc.perform(put(ADMIN_ENDPOINT + "/101/revocation").with(actor("11", "ROLE_ADMIN")))
                 .andExpect(status().isOk());

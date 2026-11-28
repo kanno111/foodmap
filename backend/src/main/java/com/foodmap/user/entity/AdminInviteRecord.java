@@ -11,6 +11,7 @@ public class AdminInviteRecord {
     @ToString.Exclude
     private String boundEmail;
     private String registeredUsername;
+    private Long registeredUserId;
     private AdminInviteStatus status;
     private long createdMicros;
     private long expiryMicros;

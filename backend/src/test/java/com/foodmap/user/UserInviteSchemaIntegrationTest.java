@@ -326,6 +326,20 @@ class UserInviteSchemaIntegrationTest {
         assertThat(inviteMapper.findReferralCode(22)).contains(occupied);
     }
 
+    @Test
+    void listsRegisteredUserIdentityOnlyForRedeemedInvites() {
+        addAdmin(1, "fixture-admin-used");
+        addAdmin(2, "fixture-admin-unused");
+        redeem(33, 1);
+        db.update("UPDATE user_invite_codes SET used_at=created_at WHERE id=1");
+
+        var rows = inviteService(new UserInviteCodeGenerator()).listAdminCodes(null, 1).records();
+        assertThat(rows).hasSize(2);
+        assertThat(rows.getFirst().getRegisteredUserId()).isNull();
+        assertThat(rows.getLast().getRegisteredUsername()).isEqualTo("new_student");
+        assertThat(rows.getLast().getRegisteredUserId()).isEqualTo("33");
+    }
+
     private UserInviteCodeService inviteService(UserInviteCodeGenerator generator) {
         var properties = new UserRegistrationProperties();
         properties.setAllowedEmailDomains(List.of("std.uestc.edu.cn"));

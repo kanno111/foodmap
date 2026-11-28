@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { authToken } from '@/shared/api/authSession'
+import { useListRouteState } from '@/shared/lib/useListRouteState'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
+import AppLink from '@/shared/ui/AppLink.vue'
 import {
   createAdminInvite,
   fetchAdminInvites,
@@ -18,6 +20,8 @@ defineProps<{ username: string; loggingOut: boolean; sessionError: string | null
 defineEmits<{ logout: [] }>()
 
 const records = ref<AdminInviteRecord[]>([])
+const routeState = useListRouteState(() => true)
+const maxPage = 10_000
 const status = ref<InviteStatus | ''>('')
 const page = ref(1)
 const hasNext = ref(false)
@@ -45,7 +49,7 @@ function time(value: string) {
   return dateFormat.format(new Date(value))
 }
 
-async function load(next = page.value) {
+async function load(next = page.value, emptyFallback = next - 1) {
   read?.abort()
   const token = authToken.value
   if (!token) return
@@ -53,13 +57,14 @@ async function load(next = page.value) {
   read = request
   const current = () => !request.signal.aborted && token === authToken.value
   page.value = next
+  void routeState.save({ status: status.value || undefined, page: next > 1 ? next : undefined })
   loading.value = true
   loadError.value = ''
   try {
     const result = await fetchAdminInvites(next, status.value, token, request.signal)
     if (!current()) return
     if (!result.records.length && next > 1) {
-      void load(next - 1)
+      void load(Math.max(1, emptyFallback), 1)
       return
     }
     records.value = result.records
@@ -156,7 +161,13 @@ watch(
     records.value = []
     hasNext.value = false
     notice.value = ''
-    void load(1)
+    const savedStatus = routeState.read('status')
+    status.value =
+      savedStatus && Object.hasOwn(inviteStatusLabels, savedStatus)
+        ? (savedStatus as InviteStatus)
+        : ''
+    const savedPage = routeState.page()
+    void load(savedPage <= maxPage ? savedPage : 1, 1)
   },
   { immediate: true, flush: 'sync' },
 )
@@ -217,7 +228,14 @@ onBeforeUnmount(() => {
                     }}</span>
                   </td>
                   <td>
-                    {{ record.registeredUsername ?? '—' }}
+                    <AppLink
+                      v-if="record.registeredUserId && record.registeredUsername"
+                      class="invite-registered-user"
+                      :to="`/admin/users/${record.registeredUserId}`"
+                    >
+                      {{ record.registeredUsername }}
+                    </AppLink>
+                    <span v-else>{{ record.registeredUsername ?? '—' }}</span>
                     <small v-if="record.boundEmail" class="invite-legacy-email"
                       >绑定 {{ record.boundEmail }}</small
                     >

@@ -118,6 +118,11 @@ time {
   display: block;
   color: var(--admin-muted);
 }
+.invite-registered-user {
+  color: var(--admin-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .invite-feedback {
   margin: 24px 16px;
   color: var(--admin-secondary);

@@ -31,6 +31,7 @@ public final class UserInviteViews {
         @ToString.Exclude
         String boundEmail;
         String registeredUsername;
+        String registeredUserId;
         AdminInviteStatus status;
         Instant createdAt;
         Instant expiresAt;

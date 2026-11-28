@@ -15,6 +15,7 @@ export interface AdminInviteRecord {
   status: InviteStatus
   boundEmail: string | null
   registeredUsername: string | null
+  registeredUserId: string | null
   createdAt: string
   expiresAt: string
 }

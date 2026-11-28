@@ -128,7 +128,7 @@ fileId为正Long十进制字符串，只接受本人上传、未过期且可绑�
 以下接口均要求有效的 Bearer 会话，成功响应带 `Cache-Control: no-store`。账号身份由会话确定。
 
 - `POST /api/admin/invite-codes` 需要 `ROLE_ADMIN`。默认生成无需绑定邮箱的码，请求示例为 `{"validDays":7}`。`validDays` 选填，范围为 1–30 天，省略或为 `null` 时采用 7 天。兼容携带 `email` 的定向发码请求；提供时须为有效的个人邮箱，存储时转换为小写。每次成功调用都会创建一张新码，返回 201，`data` 含 `id`（字符串）、`code`（26 字符）和 `expiresAt`（UTC 时间）。一次性码原文只在这次响应中返回。
-- `GET /api/admin/invite-codes` 需要 `ROLE_ADMIN`。按记录编号倒序，每页 20 条。`page` 默认 1，范围 1–10000，可传 `status` 筛选 `AVAILABLE`、`USED`、`EXPIRED`、`REVOKED`。响应 `data` 包含 `records`、`hasNext`。每条记录含 `id`、`status`、`createdAt`、`expiresAt`、`boundEmail`（可空）和 `registeredUsername`（可空）。
+- `GET /api/admin/invite-codes` 需要 `ROLE_ADMIN`。按记录编号倒序，每页 20 条。`page` 默认 1，范围 1–10000，可传 `status` 筛选 `AVAILABLE`、`USED`、`EXPIRED`、`REVOKED`。响应 `data` 包含 `records`、`hasNext`。每条记录含 `id`、`status`、`createdAt`、`expiresAt`、`boundEmail`（可空）和 `registeredUsername`（可空）。`registeredUserId` 是可浏览的注册账号 ID，未使用或账号已删除时为 null。
 - `PUT /api/admin/invite-codes/{id}/revocation` 需要 `ROLE_ADMIN`，无需请求体。可撤销仍有效且未使用的码，重复撤销仍返回 200。不存在返回 404 `USER_INVITE_NOT_FOUND`，已使用或过期返回 409 `USER_INVITE_NOT_REVOCABLE`。
 - `GET /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。仅查询本人已经领取的码，尚未领取时返回 200，`data` 为 `{"code":null}`。已领取时 `code` 为 16 字符。
 - `PUT /api/me/invite-code` 需要 `ROLE_USER` 且没有 `ROLE_ADMIN`。无需请求体，首次调用生成本人推荐码，重复或并发调用返回同一张。返回 200，`data` 含 `code`（16 字符）。推荐码长期有效。

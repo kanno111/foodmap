@@ -36,9 +36,11 @@ const page = computed(routeState.page)
 const { returnTarget, returnToPrevious } = useReturnNavigation(
   '/admin/users',
   (value): value is string =>
-    typeof value === 'string' && /^\/admin\/users(?:\/[1-9]\d{0,18})?(?:\?[^#\\\s]*)?$/.test(value),
+    typeof value === 'string' &&
+    /^\/admin\/(?:invites|users(?:\/[1-9]\d{0,18})?)(?:\?[^#\\\s]*)?$/.test(value),
 )
 const backLabel = computed(() => {
+  if (returnTarget.value.split('?', 1)[0] === '/admin/invites') return '返回校友邀请'
   if (!returnTarget.value.startsWith('/admin/users/')) return '返回用户管理'
   const name = router.options.history.state.adminInviteFrom
   return typeof name === 'string' && name ? `返回${name}的邀请记录` : '返回上一位用户'

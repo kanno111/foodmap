@@ -110,6 +110,7 @@ public interface UserInviteCodeMapper {
 
     @Select("""
             SELECT c.id, c.bound_email AS boundEmail, u.username AS registeredUsername,
+                CASE WHEN u.status != 'DELETED' THEN u.id END AS registeredUserId,
                 CAST(UNIX_TIMESTAMP(c.created_at) * 1000000 AS UNSIGNED) AS createdMicros,
                 CAST(UNIX_TIMESTAMP(c.expires_at) * 1000000 AS UNSIGNED) AS expiryMicros,
             """ + ADMIN_STATUS + """

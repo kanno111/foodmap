@@ -224,9 +224,11 @@ const router = createRouter({
             ? '.detail-page'
             : to.path === '/admin/users'
               ? '.user-workspace .results[aria-busy="false"]'
-              : to.name === 'admin-user-detail'
-                ? '.admin-user-detail .detail-records[aria-busy="false"]'
-                : undefined
+              : to.path === '/admin/invites'
+                ? '.invite-workspace .invite-records[aria-busy="false"]'
+                : to.name === 'admin-user-detail'
+                  ? '.admin-user-detail .detail-records[aria-busy="false"]'
+                  : undefined
     if (selector) {
       await nextTick()
       const canRestoreCachedCatalog =

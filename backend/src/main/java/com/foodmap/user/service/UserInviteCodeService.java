@@ -63,7 +63,8 @@ public class UserInviteCodeService {
         var rows = invites.pageAdminCodes(status, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
         var records = rows.stream().limit(PAGE_SIZE)
                 .map(row -> new UserInviteViews.AdminRecord(
-                        Long.toString(row.getId()), row.getBoundEmail(), row.getRegisteredUsername(), row.getStatus(),
+                        Long.toString(row.getId()), row.getBoundEmail(), row.getRegisteredUsername(),
+                        Objects.toString(row.getRegisteredUserId(), null), row.getStatus(),
                         fromMicros(row.getCreatedMicros()), fromMicros(row.getExpiryMicros())))
                 .toList();
         return new UserInviteViews.AdminPage(records, page < AdminInviteQuery.MAX_PAGE && rows.size() > PAGE_SIZE);
