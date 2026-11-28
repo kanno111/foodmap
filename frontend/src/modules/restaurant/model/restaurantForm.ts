@@ -9,6 +9,7 @@ export interface RestaurantDraft {
   address: string
   latitude: string
   longitude: string
+  cityName: string
   locationConfirmed: boolean
   businessStatus: RestaurantResponse['businessStatus']
   tags: string
@@ -27,6 +28,7 @@ export function restaurantDraft(value?: RestaurantResponse): RestaurantDraft {
     address: value?.address ?? '',
     latitude: value?.latitude?.toString() ?? '',
     longitude: value?.longitude?.toString() ?? '',
+    cityName: value?.cityName ?? '',
     locationConfirmed: false,
     businessStatus: value?.businessStatus ?? 'OPERATING',
     tags: value?.tags.join('\n') ?? '',
@@ -87,6 +89,7 @@ export function restaurantInput(
     priceKind: form.price.trim() ? 'EXACT' : 'UNKNOWN',
     pricePerPerson: form.price.trim() ? Number(form.price) : null,
     address: form.address.trim() || null,
+    ...(form.cityName ? { cityName: form.cityName } : {}),
     latitude: Number(form.latitude),
     longitude: Number(form.longitude),
     locationConfirmed: true,

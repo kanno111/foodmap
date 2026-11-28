@@ -2,6 +2,7 @@ package com.foodmap.restaurant.dto;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -32,6 +33,10 @@ public class RestaurantSaveRequest {
     private String priceKind = "UNKNOWN";
 
     private String address;
+
+    /** 省略时兼容旧客户端，并保持旧提交 JSON 和幂等摘要的字节内容。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String cityName;
 
     /** 系统统一使用GCJ-02，导入时完成转换，不再逐条保存或接受坐标系字段。 */
     @NotNull(message = "请确认餐厅纬度")

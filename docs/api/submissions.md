@@ -44,7 +44,7 @@
 `POST /api/restaurant-submissions`提交新商户；`POST /api/restaurants/{id}/change-requests`对现有未删除商户提交纠错。两者需Bearer，普通用户可用；纠错不要求是商户创建者。
 
 ```json
-{"clientRequestId":"2bd0946c-291c-49af-8670-319ca4f64f5d","name":"商户名称","categoryCode":"HOT_POT","restaurantType":"REGULAR","priceKind":"UNKNOWN","pricePerPerson":null,"supportsDineIn":true,"supportsDelivery":null,"address":"商户地址","latitude":30.670582,"longitude":104.107260,"locationConfirmed":true,"businessStatus":"OPERATING","tags":[],"photoIds":[]}
+{"clientRequestId":"2bd0946c-291c-49af-8670-319ca4f64f5d","name":"商户名称","categoryCode":"HOT_POT","restaurantType":"REGULAR","priceKind":"UNKNOWN","pricePerPerson":null,"supportsDineIn":true,"supportsDelivery":null,"address":"商户地址","cityName":"成都市","latitude":30.670582,"longitude":104.107260,"locationConfirmed":true,"businessStatus":"OPERATING","tags":[],"photoIds":[]}
 ```
 
 | 字段 | 规则 |
@@ -55,6 +55,7 @@
 | `restaurantType` | REGULAR/CANTEEN，默认REGULAR |
 | `priceKind` / `pricePerPerson` | 默认UNKNOWN/null；EXACT或ESTIMATE时为1–5000的整数元，UNKNOWN必须null |
 | `address` | 最多80码点，空白转null |
+| `cityName` | 地级行政区或直辖市的标准全称。Web 新店表单选店后自动填入，服务端兼容旧客户端省略。都江堰的门店使用 `成都市` |
 | `latitude` / `longitude` | 必填GCJ-02，纬度3–54、经度73–136，最多6位有效小数 |
 | `locationConfirmed` | 必须true |
 | `supportsDineIn` / `supportsDelivery` | true/false/null，null表示未知 |
@@ -530,7 +531,7 @@ id为无前导零、未溢出的正Long字符串申请ID，position严格为0–
 `POST /api/admin/restaurant-requests/{id}/approve`。请求为完整可维护业务资料，不是PATCH：
 
 ```json
-{"name":"银杏面馆","categoryCode":"OTHER","restaurantType":"REGULAR","supportsDineIn":true,"supportsDelivery":null,"priceKind":"EXACT","pricePerPerson":20,"address":"商户地址","latitude":30.7544,"longitude":103.9312,"locationConfirmed":true,"businessStatus":"OPERATING","tags":["面食"]}
+{"name":"银杏面馆","categoryCode":"OTHER","restaurantType":"REGULAR","supportsDineIn":true,"supportsDelivery":null,"priceKind":"EXACT","pricePerPerson":20,"address":"商户地址","cityName":"成都市","latitude":30.7544,"longitude":103.9312,"locationConfirmed":true,"businessStatus":"OPERATING","tags":["面食"]}
 ```
 
 基础字段校验与[直接维护餐厅](restaurants.md#management)直接维护一致；审核另接收restaurantType（REGULAR普通餐厅/CANTEEN食堂，省略默认REGULAR，显式null非法）、supportsDineIn和supportsDelivery（true支持、false不支持、null未知，省略为null）。管理端始终提交明确类型及三态用餐方式，不能只展示这些字段而在发布时丢弃。只接收上述业务字段，禁止clientRequestId、photoIds、身份、来源、评分、审核状态等字段。管理员修订内容独立于原始投稿；原proposed_data、request_hash和提交人保持不变。
@@ -551,6 +552,7 @@ id为无前导零、未溢出的正Long字符串申请ID，position严格为0–
 
 - 首次通过时，REGULAR必须提供可用的categoryCode；CANTEEN必须使用categoryCode=null或省略。类型与分类不匹配返回400 RESTAURANT_INVALID_INPUT，不自动将食堂归到“其他美食”。旧的已通过食堂按原完整内容重试仍返回首次回执，不重新写入历史分类。
 - CREATE创建正式餐厅和有序标签，created_by/updated_by均为实际审核管理员，新ID回填申请restaurant_id，request_type保持CREATE。投稿人保留在submitted_by，不因此获得直接维护权限。
+- 审核写入最终 `cityName` 到正式店铺及通过快照。旧审核请求省略城市且坐标一致时沿用申请中的城市。修改已归属门店的申请坐标时应明确核对并提交城市。
 - UPDATE更新原ID及餐厅类型、堂食/外卖三态，保留既有创建者、来源及评分；before_data保存事务内更新前的业务字段及标签（含类型、用餐方式），approved_data保存规范化后的最终业务字段。新店before_data为空。
 - 商户、标签、正式相册关联、审核状态和成长奖励在同一个事务提交或回滚。首次通过按原submitted_by计奖：CREATE默认+20，按申请去重；UPDATE默认+10，按用户和店铺去重，后续纠错可正常通过但不重复领奖。重复通过和历史已通过申请不补发经验，管理员直接维护与驳回不计奖；奖励写入失败整次审核返回500 COMMON_INTERNAL_SERVER_ERROR，不保留已通过结果。纠错统一先锁商户、再锁申请；新店先锁申请并创建正式商户；文件校验按文件ID升序加锁。审核人取当前认证，时间由数据库生成，不能回退终态。
 - 相同规范化完整内容再次通过，返回首次回执且replayed=true，不重复建店、更新商户或覆盖审核人/时间；分类后来被停用不妨碍已成功结果重放。已通过后提交不同内容、已驳回后通过均409。直接维护接口的后续修改不会被通过重试覆盖。

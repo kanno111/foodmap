@@ -77,6 +77,27 @@ class RestaurantReadApiIntegrationTest {
     @MockitoBean private LoginSessionService sessions;
     @MockitoSpyBean private RestaurantCatalogMapper mapper;
 
+    @Test
+    void listsPublicCitiesAndFiltersTheWholeResultBeforePaging() throws Exception {
+        jdbc.update("UPDATE restaurants SET city_name='成都市' WHERE id=101");
+        jdbc.update("UPDATE restaurants SET city_name='重庆市' WHERE id=102");
+        jdbc.update("UPDATE restaurants SET city_name='杭州市' WHERE id=106");
+
+        mvc.perform(get("/api/restaurant-cities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", org.hamcrest.Matchers.containsInAnyOrder("成都市", "重庆市")));
+        mvc.perform(get("/api/restaurants").param("cityName", "重庆市")
+                        .param("keyword", "A同名").param("pageSize", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value("102"));
+        mvc.perform(get("/api/restaurants").param("cityName", "杭州市"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+        mvc.perform(get("/api/restaurants").param("cityName", "都江堰市"))
+                .andExpect(status().isBadRequest());
+    }
+
     /** 上下文启动前创建空库，由实际应用Flyway配置执行V1至V3，验证XML自动加载。 */
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) throws SQLException {

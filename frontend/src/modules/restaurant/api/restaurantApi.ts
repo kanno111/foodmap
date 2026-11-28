@@ -19,6 +19,7 @@ export interface RestaurantResponse {
   pricePerPerson: number | null
   priceKind: 'UNKNOWN' | 'EXACT' | 'ESTIMATE'
   address: string | null
+  cityName?: string | null
   latitude: number | null
   longitude: number | null
   needsLocation: boolean
@@ -43,6 +44,7 @@ export interface RestaurantCategory {
 /** 管理快照仅在服务端授权后读取；保留完整编辑字段，不从公开页面猜测归属。 */
 export interface RestaurantManagement {
   restaurant: RestaurantResponse
+  cityName?: string | null
   deleted: boolean
 }
 
@@ -57,6 +59,7 @@ export interface RestaurantSaveInput {
   priceKind: RestaurantResponse['priceKind']
   pricePerPerson: number | null
   address: string | null
+  cityName?: string
   latitude: number
   longitude: number
   locationConfirmed: true
@@ -134,6 +137,12 @@ export async function fetchRestaurantCategories(
   return response.data.data
 }
 
+/** 城市选项只来自本站已有公开店铺。 */
+export async function fetchRestaurantCities(): Promise<string[]> {
+  const response = await httpClient.get<ApiResponse<string[]>>('/api/restaurant-cities')
+  return response.data.data
+}
+
 /** 全量条件交给服务端；显式列出有效字段，不发送已经移除的杯型和推荐/踩雷参数。 */
 export async function fetchRestaurants(
   filters: CatalogFilters,
@@ -150,6 +159,7 @@ export async function fetchRestaurants(
         latitude: filters.latitude,
         longitude: filters.longitude,
         keyword: filters.keyword,
+        ...(filters.cityName ? { cityName: filters.cityName } : {}),
         restaurantType: filters.restaurantType || undefined,
         diningMode: filters.diningMode || undefined,
         hasReviews: filters.hasReviews ?? undefined,

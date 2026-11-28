@@ -12,6 +12,7 @@ import co.elastic.clients.json.JsonData;
 
 import com.foodmap.restaurant.config.RestaurantSearchQueryProperties;
 import com.foodmap.restaurant.dto.RestaurantListQuery;
+import com.foodmap.restaurant.exception.RestaurantSearchStaleException;
 import com.foodmap.restaurant.search.RestaurantSearchReader;
 
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,26 @@ import tools.jackson.databind.ObjectMapper;
 
 /** 不完整搜索不能伪装成空结果；覆盖真实ES成功回归无法稳定制造的超时/部分分片失败。 */
 class RestaurantSearchReaderTest {
+    @Test
+    void appliesExactCityFilterAndRejectsUnmappedOldIndex() throws Exception {
+        var client = mock(ElasticsearchClient.class);
+        var reader = new RestaurantSearchReader(client, new ObjectMapper(),
+                new RestaurantSearchQueryProperties(),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        var query = new RestaurantListQuery();
+        query.setCityName("成都市");
+        assertThat(reader.request(query, false, "").query().bool().filter())
+                .anySatisfy(filter -> {
+                    assertThat(filter.term().field()).isEqualTo("cityName");
+                    assertThat(filter.term().value().stringValue()).isEqualTo("成都市");
+                });
+        var oldIndex = co.elastic.clients.elasticsearch.core.FieldCapsResponse.of(
+                b -> b.indices("restaurant-search-v004").fields(java.util.Map.of()));
+        when(client.fieldCaps(any(java.util.function.Function.class))).thenReturn(oldIndex);
+        assertThatThrownBy(() -> reader.search(query, false)).isInstanceOf(RestaurantSearchStaleException.class);
+        verify(client, never()).search(any(SearchRequest.class), eq(JsonData.class));
+    }
+
     @Test
     void filtersEffectiveReviewCountForCatalogAndMap() {
         var reader = new RestaurantSearchReader(mock(ElasticsearchClient.class), new ObjectMapper(),

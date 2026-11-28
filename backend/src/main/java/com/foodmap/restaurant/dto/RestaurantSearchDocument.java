@@ -20,6 +20,7 @@ public class RestaurantSearchDocument {
     private String restaurantType;
     private List<String> tags;
     private String address;
+    private String cityName;
     private Boolean supportsDineIn;
     private Boolean supportsDelivery;
     private Integer pricePerPerson;

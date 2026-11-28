@@ -103,11 +103,13 @@
 | --- | --- |
 | `keywords` | 必填，去空白后最多100字符 |
 | `page` | 默认1，范围1–100 |
+| `city` | `citylimit=true` 时必填，六位地级行政区或直辖市区划编码，例如成都 `510100`、重庆 `500000` |
+| `citylimit` | `true` 时高德严格按选定区划搜索。未开启时沿用成都优先搜索 |
 | `callback` | SDK可选JSONP回调。生产代理只允许单一、最长128字符的JavaScript标识符或点分路径；拒绝空值、重复、大小写变体及表达式 |
 
 **响应**
 
-返回高德原生格式，不使用业务响应封装。代理固定餐饮类型050000、每页10条、城市成都市、`citylimit=false`。
+返回高德原生格式，不使用业务响应封装。代理固定餐饮类型050000、每页10条和基础字段。Web 提交店铺默认以成都编码开启严格搜索，选城市后使用对应编码。代理为严格搜索沿用高德 JS SDK 的地点请求通道，前端读取原生 JSON 并核对区划。非法严格搜索编码返回400，不回退到其他城市。
 
 生产代理对合法JSONP请求的成功文本响应（高德可能标为`application/json`、`application/octet-stream`或`text/plain`）修正为`application/javascript; charset=UTF-8`，保留`nosniff`及`no-store`，不改上游正文。未带callback的JSON、图片及HTTP错误响应不改类型；非法callback在转发前返回400 `MAP_SEARCH_INVALID_QUERY`。
 

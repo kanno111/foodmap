@@ -8,6 +8,7 @@ import com.foodmap.restaurant.entity.RestaurantEntity;
 import com.foodmap.restaurant.exception.RestaurantErrorCode;
 import com.foodmap.restaurant.mapper.RestaurantChangeMapper;
 import com.foodmap.restaurant.policy.RestaurantSubmissionHashPolicy;
+import com.foodmap.restaurant.policy.RestaurantCityPolicy;
 import com.foodmap.restaurant.support.RestaurantIdentifiers;
 import com.foodmap.restaurant.vo.RestaurantSubmissionVo;
 import com.foodmap.review.service.ReviewSubmissionLifecycleService;
@@ -127,6 +128,7 @@ public class RestaurantChangeService {
         if (!"REJECTED".equals(previous.getStatus())) {
             throw new BusinessException(RestaurantErrorCode.STATE_CONFLICT, "仅被驳回申请可以重新提交");
         }
+        RestaurantCityPolicy.retainForSameLocation(request, json.readTree(previous.getProposedData()));
         // 先锁原申请再锁后续申请，重放在触碰点评前返回；防止恢复迁移前内容或与子申请编辑反向加锁。
         var successor = mapper.successor(parentId, owner);
         if (successor != null

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""更新现有高德代理JSONP响应处理；保留站点、凭据及应用配置。"""
+"""更新现有高德代理；保留站点、凭据及应用配置。"""
 import os
 from pathlib import Path
 import hashlib
@@ -10,8 +10,14 @@ import tempfile
 
 
 FILES = {
-    "amap-proxy.js": "eea5614ac67ebba7acb46369ea7344beaa24aa22f265177e1d5ce6317362c34f",
-    "amap-proxy-common.conf": "429e0d3f5bf94e73ecceb49b3f20aba819ddc3b5b52dac9570b7c07c1aafeeb9",
+    "amap-proxy.js": (
+        "eea5614ac67ebba7acb46369ea7344beaa24aa22f265177e1d5ce6317362c34f",
+        "2290b7db2e8dc82263e5b9093f4469bc9eb9c956ba12cd5f3464615ebf784eb6",
+    ),
+    "amap-proxy-common.conf": (
+        "429e0d3f5bf94e73ecceb49b3f20aba819ddc3b5b52dac9570b7c07c1aafeeb9",
+        "6265e6729ec650cda0f6af6852801af4819f73a7cb33fb27030250022a8687f8",
+    ),
 }
 
 
@@ -45,7 +51,7 @@ def update(source, destination, validate, reload):
             raise RuntimeError("Expected regular proxy files; no update performed.")
         before = target.read_bytes()
         after = (source / name).read_bytes()
-        if digest(before) not in (expected, digest(after)):
+        if digest(before) not in (*expected, digest(after)):
             raise RuntimeError("Existing proxy differs from the reviewed baseline; preserved it.")
         originals[name] = (before, stat.S_IMODE(info.st_mode))
         replacements[name] = after
@@ -97,9 +103,9 @@ def main():
                     lambda: run(["nginx", "-t"]),
                     lambda: run(["systemctl", "reload", "nginx"]))
     if backup:
-        print("JSONP proxy update validated and Nginx reloaded. Backup: " + str(backup))
+        print("AMap proxy update validated and Nginx reloaded. Backup: " + str(backup))
     else:
-        print("JSONP proxy files already current; syntax validation passed. No reload needed.")
+        print("AMap proxy files already current. Syntax validation passed.")
     print("Credentials, site, backend and database preserved; nosniff remains enabled.")
 
 

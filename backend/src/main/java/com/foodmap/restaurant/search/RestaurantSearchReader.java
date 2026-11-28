@@ -9,6 +9,7 @@ import com.foodmap.restaurant.config.RestaurantSearchQueryProperties;
 import com.foodmap.restaurant.dto.RestaurantListQuery;
 import com.foodmap.restaurant.dto.RestaurantSearchDocument;
 import com.foodmap.restaurant.dto.RestaurantSearchResult;
+import com.foodmap.restaurant.exception.RestaurantSearchStaleException;
 import com.foodmap.restaurant.metrics.RestaurantSearchMetrics;
 import com.foodmap.restaurant.policy.RestaurantSearchListPolicy;
 import com.foodmap.restaurant.policy.RestaurantSearchQueryPolicy;
@@ -66,39 +67,42 @@ public class RestaurantSearchReader {
     private RestaurantSearchResult execute(RestaurantListQuery query, boolean map, int[] requests)
             throws IOException {
         String target = properties.getIndexAlias();
+        var requiredFields = new LinkedHashMap<String, String>();
         if (RestaurantSearchQueryPolicy.isSingleHan(query.getKeyword())) {
-            // term查询遇到未映射字段会静默返回0；先确认四字段均可检索，并固定本次物理索引。
+            CHARACTER_FIELDS.forEach(field -> requiredFields.put(field, "text"));
+        }
+        if (query.hasCityFilter()) {
+            requiredFields.put("cityName", "keyword");
+        }
+        if (!requiredFields.isEmpty()) {
+            // term查询遇到未映射字段会静默返回0；先确认所需字段可检索，并固定本次物理索引。
             // 固定目标避免校验之后别名切回旧结构时，将索引未就绪误解释成业务空结果。
             attempted(query, requests, "field_caps");
             var capabilities =
                     client.fieldCaps(
-                            b -> b.index(properties.getIndexAlias()).fields(CHARACTER_FIELDS));
+                            b -> b.index(properties.getIndexAlias()).fields(List.copyOf(requiredFields.keySet())));
             if (capabilities.indices().size() != 1
-                    || CHARACTER_FIELDS.stream()
-                            .anyMatch(
-                                    field ->
-                                            !capabilities.fields().containsKey(field)
-                                                    || !capabilities
-                                                            .fields()
-                                                            .get(field)
-                                                            .containsKey("text")
-                                                    || !capabilities
-                                                            .fields()
-                                                            .get(field)
-                                                            .get("text")
-                                                            .searchable())) {
+                    || requiredFields.entrySet().stream().anyMatch(entry -> {
+                        var capability = capabilities.fields()
+                                .getOrDefault(entry.getKey(), Map.of()).get(entry.getValue());
+                        return capability == null || !capability.searchable();
+                    })) {
+                if (query.hasCityFilter()) {
+                    throw new RestaurantSearchStaleException();
+                }
                 throw new IllegalStateException("单字搜索索引未就绪");
             }
             target = capabilities.indices().getFirst();
         }
         String exact = "";
         if (!query.getKeyword().strip().isEmpty() && "relevance".equals(query.getEffectiveSort())) {
+            String targetIndex = target;
             attempted(query, requests, "analyze");
             var analyzed =
                     client.indices()
                             .analyze(
                                     b ->
-                                            b.index(properties.getIndexAlias())
+                                            b.index(targetIndex)
                                                     .normalizer("restaurant_name_exact")
                                                     .text(query.getKeyword().strip()));
             if (analyzed.tokens().size() != 1) {
@@ -173,6 +177,9 @@ public class RestaurantSearchReader {
             RestaurantListQuery query, boolean map, String exact, String target) {
         var filters = new ArrayList<Object>();
         filters.add(term("deleted", false));
+        if (query.hasCityFilter()) {
+            filters.add(term("cityName", query.getCityName()));
+        }
         if (!query.getCategory().isEmpty()) {
             filters.add(term("categoryCode", query.getCategory()));
         }

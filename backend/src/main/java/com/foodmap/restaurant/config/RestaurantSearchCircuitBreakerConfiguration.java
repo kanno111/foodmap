@@ -1,5 +1,7 @@
 package com.foodmap.restaurant.config;
 
+import com.foodmap.restaurant.exception.RestaurantSearchStaleException;
+
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.micrometer.core.instrument.Gauge;
@@ -29,6 +31,7 @@ public class RestaurantSearchCircuitBreakerConfiguration {
                 .waitDurationInOpenState(settings.getWaitDurationInOpenState())
                 .permittedNumberOfCallsInHalfOpenState(settings.getPermittedNumberOfCallsInHalfOpenState())
                 .automaticTransitionFromOpenToHalfOpenEnabled(false)
+                .ignoreExceptions(RestaurantSearchStaleException.class)
                 // 本轮不启用独立慢调用熔断：使用纳秒计时可表达的最大阈值，超时仍作为异常计数。
                 .slowCallDurationThreshold(Duration.ofNanos(Long.MAX_VALUE))
                 .build();

@@ -9,6 +9,8 @@ describe('高德地点搜索适配', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.resetAllMocks()
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
   })
   async function setup() {
     vi.useFakeTimers()
@@ -71,6 +73,49 @@ describe('高德地点搜索适配', () => {
     second.finish('error', { info: 'SECRET_MUST_NOT_APPEAR' })
     await failure
   })
+  it.each([
+    ['510100', '成都市', { cityname: '成都市', adname: '都江堰市' }, '500103'],
+    ['500000', '重庆市', { pname: '重庆市' }, '510107'],
+    ['510100', '成都市', { adcode: '510181', cityname: '成都市' }, '500103'],
+  ] as const)(
+    '限定城市 %s，不采用外地或无法验证归属的门店',
+    async (adcode, name, local, outside) => {
+      vi.stubEnv('VITE_AMAP_SERVICE_HOST', '/_AMapService')
+      const raw = { ...poi, location: '104.1,30.6' }
+      const fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: '1',
+          count: '3',
+          pois: [
+            { ...raw, ...local },
+            { ...raw, id: 'outside', adcode: outside },
+            { ...raw, id: 'unknown' },
+          ],
+        }),
+      })
+      vi.stubGlobal('fetch', fetch)
+      const result = await searchAMapPlaces('测试餐厅', 2, new AbortController().signal, {
+        adcode,
+        name,
+      })
+      const request = new URL(fetch.mock.calls[0]![0], 'http://localhost')
+      expect(request.pathname).toBe('/_AMapService/v3/place/text')
+      expect(request.searchParams.get('city')).toBe(adcode)
+      expect(request.searchParams.get('citylimit')).toBe('true')
+      expect(request.searchParams.get('page')).toBe('2')
+      expect(loadAMap).not.toHaveBeenCalled()
+      expect(result.places).toEqual([
+        expect.objectContaining({
+          id: poi.id,
+          cityName: name,
+          district: expect.stringContaining(name),
+          latitude: 30.6,
+          longitude: 104.1,
+        }),
+      ])
+    },
+  )
   it('取消及超时后忽略SDK迟到回调并清理计时', async () => {
     const first = await setup()
     const aborted = expect(first.pending).rejects.toHaveProperty('name', 'AbortError')

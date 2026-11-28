@@ -21,6 +21,7 @@ public class RestaurantSearchSource {
     private Integer pricePerPerson;
     private String priceKind;
     private String address;
+    private String cityName;
     private BigDecimal latitude;
     private BigDecimal longitude;
     private boolean needsLocation;

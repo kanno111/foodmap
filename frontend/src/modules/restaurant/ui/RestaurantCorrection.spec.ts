@@ -112,6 +112,7 @@ describe('商户资料补充与纠错', () => {
           name: '高德分店',
           address: '新的商户地址',
           district: '成都市',
+          cityName: '成都市',
           category: '餐饮',
           latitude: 30.6757894,
           longitude: 104.0996712,
@@ -240,6 +241,7 @@ describe('商户资料补充与纠错', () => {
   /** 同时覆盖图片用途隔离、必选态度以及网络重试，避免联合表单仅看起来可提交。 */
   it('联合投稿态度无默认值，图片分用途，失败重试保留完整请求编号', async () => {
     const draft = prepareMerchantSubmission({
+      cityName: '成都市',
       name: '新店',
       address: '校园路',
       latitude: 30.75,
@@ -322,6 +324,7 @@ describe('商户资料补充与纠错', () => {
   /** 真正切换视图再重建编辑器，确认草稿与上传队列没有随子组件卸载而丢失。 */
   it('两步往返保留店铺资料、点评、评分及两类照片，直到最后才联合提交', async () => {
     const draft = prepareMerchantSubmission({
+      cityName: '成都市',
       name: '两步测试店',
       address: '校园路',
       latitude: 30.75,
@@ -390,6 +393,7 @@ describe('商户资料补充与纠错', () => {
   })
   it('联合提交失败后可返回仅提交店铺，换请求编号并仅取消未保存的点评图', async () => {
     const draft = prepareMerchantSubmission({
+      cityName: '成都市',
       name: '新店',
       address: '校园路',
       latitude: 30.75,
@@ -424,6 +428,7 @@ describe('商户资料补充与纠错', () => {
   })
   it('首次附带点评的草稿不阻止改为食堂，食堂只提交店铺且不附带点评', async () => {
     const draft = prepareMerchantSubmission({
+      cityName: '成都市',
       name: '新食堂',
       address: '校园路',
       latitude: 30.75,
@@ -693,6 +698,7 @@ describe('商户资料补充与纠错', () => {
   })
   it('选中的门店带入地址与位置，只调用新店待审接口，失败重试沿用编号', async () => {
     const draft = prepareMerchantSubmission({
+      cityName: '成都市',
       name: '新门店',
       address: '新门店地址',
       latitude: 30.675789,
@@ -748,6 +754,7 @@ describe('商户资料补充与纠错', () => {
   it('从地址核对位置时，地图失败返回仍保留表单和待提交图片', async () => {
     vi.mocked(loadAMap).mockRejectedValue(new Error('offline'))
     const draft = prepareMerchantSubmission({
+      cityName: '成都市',
       name: '新门店',
       address: '新门店地址',
       latitude: 30.675789,

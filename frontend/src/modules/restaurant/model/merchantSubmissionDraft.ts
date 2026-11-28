@@ -3,6 +3,7 @@ import { createRequestId } from '@/shared/lib/createRequestId'
 export interface MerchantSubmissionPlace {
   name: string
   address: string
+  cityName?: string
   longitude: number
   latitude: number
 }

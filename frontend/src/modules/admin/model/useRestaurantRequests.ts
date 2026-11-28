@@ -250,6 +250,7 @@ export function useRestaurantRequests() {
               : '未知',
       ],
       ['详细地址', (data) => text(data.address)],
+      ['所属城市', (data) => text(data.cityName)],
       [
         '位置 GCJ-02',
         (data) =>
@@ -280,6 +281,7 @@ export function useRestaurantRequests() {
       'categoryCode',
       'restaurantType',
       'address',
+      'cityName',
       'position',
       'pricePerPerson',
       'supportsDineIn',
@@ -339,6 +341,9 @@ export function useRestaurantRequests() {
       name: data.name,
       categoryCode: data.restaurantType === 'CANTEEN' ? null : String(data.categoryCode),
       address: data.address == null ? null : String(data.address),
+      ...(typeof data.cityName === 'string' && data.cityName.trim()
+        ? { cityName: data.cityName.trim() }
+        : {}),
       latitude: data.latitude,
       longitude: data.longitude,
       locationConfirmed: true,

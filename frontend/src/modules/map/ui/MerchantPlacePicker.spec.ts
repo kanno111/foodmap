@@ -10,6 +10,7 @@ vi.mock('../sdk/places', () => ({ searchAMapPlaces: vi.fn() }))
 describe('高德商户位置选择', () => {
   let app: App, host: HTMLDivElement
   const select = vi.fn()
+  const chooseCity = ref(false)
   const place: AMapPlace = {
     id: 'poi1',
     name: '测试店(沙河店)',
@@ -24,6 +25,7 @@ describe('高德商户位置选择', () => {
   }
   beforeEach(() => {
     vi.resetAllMocks()
+    chooseCity.value = false
     host = document.createElement('div')
     document.body.append(host)
     const name = ref('测试店')
@@ -31,6 +33,7 @@ describe('高德商户位置选择', () => {
       render: () =>
         h(MerchantPlacePicker, {
           modelValue: name.value,
+          chooseCity: chooseCity.value,
           'onUpdate:modelValue': (value: string) => {
             name.value = value
           },
@@ -44,9 +47,51 @@ describe('高德商户位置选择', () => {
     host.remove()
   })
   const search = async () => {
-    host.querySelector('button')!.click()
+    ;[...host.querySelectorAll('button')]
+      .find((button) => button.textContent?.trim() === '搜索门店')!
+      .click()
     await settle()
   }
+  it('投稿默认严格搜索成都，选城市时保留关键词并取消旧搜索', async () => {
+    chooseCity.value = true
+    await settle()
+    await vi.dynamicImportSettled()
+    await settle()
+    vi.mocked(searchAMapPlaces).mockReturnValueOnce(new Promise(() => {}))
+    await search()
+    const signal = vi.mocked(searchAMapPlaces).mock.calls[0]![2]
+    expect(searchAMapPlaces).toHaveBeenCalledWith('测试店', 1, signal, {
+      adcode: '510100',
+      name: '成都市',
+    })
+    host.querySelector<HTMLButtonElement>('[aria-expanded]')!.click()
+    await settle()
+    const cityInput = host.querySelector<HTMLInputElement>('[aria-label="搜索城市名称"]')!
+    cityInput.value = '都江堰'
+    cityInput.dispatchEvent(new Event('input', { bubbles: true }))
+    await settle()
+    expect(host.querySelector('button[aria-pressed]')).toBeNull()
+    cityInput.value = '杭州'
+    cityInput.dispatchEvent(new Event('input', { bubbles: true }))
+    await settle()
+    host.querySelector<HTMLButtonElement>('button[aria-pressed]')!.click()
+    await settle()
+    expect(signal.aborted).toBe(true)
+    expect(host.querySelector<HTMLInputElement>('input')!.value).toBe('测试店')
+    expect(searchAMapPlaces).toHaveBeenCalledTimes(1)
+    vi.mocked(searchAMapPlaces).mockResolvedValue({ places: [], total: 0 })
+    await search()
+    expect(searchAMapPlaces).toHaveBeenLastCalledWith(
+      '测试店',
+      1,
+      expect.any(AbortSignal),
+      expect.objectContaining({
+        adcode: '330100',
+        name: '杭州市',
+      }),
+    )
+    expect(host.textContent).toContain('在杭州市没有找到门店')
+  })
   it('挂载不搜索，选择后只回传目标门店；Enter不会提交外层表单', async () => {
     expect(searchAMapPlaces).not.toHaveBeenCalled()
     vi.mocked(searchAMapPlaces).mockResolvedValue({
@@ -61,11 +106,7 @@ describe('高德商户位置选择', () => {
     host.querySelector('input')!.dispatchEvent(enter)
     await settle()
     expect(enter.defaultPrevented).toBe(true)
-    expect(searchAMapPlaces).toHaveBeenCalledWith(
-      '测试店',
-      1,
-      expect.any(AbortSignal),
-    )
+    expect(searchAMapPlaces).toHaveBeenCalledWith('测试店', 1, expect.any(AbortSignal))
     expect(select).not.toHaveBeenCalled()
     host.querySelector<HTMLButtonElement>('li button')!.click()
     expect(select).toHaveBeenCalledWith(place)
@@ -106,15 +147,9 @@ describe('高德商户位置选择', () => {
       total: 21,
     })
     await search()
-    ;[...host.querySelectorAll('button')]
-      .find((b) => b.textContent?.trim() === '下一页')!
-      .click()
+    ;[...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === '下一页')!.click()
     await settle()
-    expect(searchAMapPlaces).toHaveBeenLastCalledWith(
-      '测试店',
-      2,
-      expect.any(AbortSignal),
-    )
+    expect(searchAMapPlaces).toHaveBeenLastCalledWith('测试店', 2, expect.any(AbortSignal))
     vi.mocked(searchAMapPlaces).mockResolvedValue({
       places: [{ ...place, latitude: 1 }],
       total: 1,

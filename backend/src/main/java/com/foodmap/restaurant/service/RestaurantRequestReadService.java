@@ -56,6 +56,7 @@ public class RestaurantRequestReadService {
                     "priceKind",
                     "pricePerPerson",
                     "address",
+                    "cityName",
                     "latitude",
                     "longitude",
                     "locationConfirmed",
@@ -136,6 +137,7 @@ public class RestaurantRequestReadService {
                 values.put("priceKind", current.getPriceKind());
                 values.put("pricePerPerson", current.getPricePerPerson());
                 values.put("address", current.getAddress());
+                values.put("cityName", current.getCityName());
                 values.put("latitude", current.getLatitude());
                 values.put("longitude", current.getLongitude());
                 values.put("locationConfirmed", !current.isNeedsLocation());

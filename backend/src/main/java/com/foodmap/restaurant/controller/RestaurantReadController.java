@@ -38,7 +38,7 @@ public class RestaurantReadController {
                 .anyMatch(key -> key.equals("view") || key.equals("tiers") || key.startsWith("tiers["))) {
             throw new BusinessException(RestaurantErrorCode.INVALID_INPUT, "已不支持杯型或评分分档视图筛选");
         }
-        binder.setAllowedFields("keyword", "category", "restaurantType", "diningMode", "hasReviews", "sort", "hideClosed",
+        binder.setAllowedFields("keyword", "cityName", "category", "restaurantType", "diningMode", "hasReviews", "sort", "hideClosed",
                 "latitude", "longitude", "maxPrice", "maxDistanceMeters", "page", "pageSize", "west", "south", "east", "north");
     }
 
@@ -46,6 +46,11 @@ public class RestaurantReadController {
     @GetMapping("/restaurant-categories")
     public ApiResponse<List<RestaurantCategoryVo>> categories() {
         return ApiResponse.ok(service.categories());
+    }
+
+    @GetMapping("/restaurant-cities")
+    public ApiResponse<List<String>> cities() {
+        return ApiResponse.ok(service.cities());
     }
 
     /** 非法类型和约束错误由统一校验处理器转换为400，不回显SQL或内部异常。 */

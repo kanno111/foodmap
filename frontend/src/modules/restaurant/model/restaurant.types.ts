@@ -36,6 +36,8 @@ export type RestaurantSort =
 
 /** 分类使用服务端稳定编码，所有条件随分页请求提交，不在当前页二次筛选。 */
 export interface CatalogFilters {
+  /** 仅目录页面主动传入的标准地级行政区全称。 */
+  cityName?: string
   /** 距离参照点独立于排序；校区选择不会读取用户位置，也不写入账号。 */
   distanceOrigin?: 'QINGSHUIHE' | 'SHAHE' | 'USER'
   /** GCJ-02用户位置：仅在授权成功后随查询发送，不持久化。 */

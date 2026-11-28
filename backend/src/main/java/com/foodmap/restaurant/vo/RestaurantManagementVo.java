@@ -6,5 +6,6 @@ import lombok.Data;
 @Data
 public class RestaurantManagementVo {
     private RestaurantVo restaurant;
+    private String cityName;
     private boolean deleted;
 }

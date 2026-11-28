@@ -5,6 +5,7 @@ import com.foodmap.restaurant.dto.RestaurantSaveRequest;
 import com.foodmap.restaurant.entity.RestaurantManagementEntity;
 import com.foodmap.restaurant.exception.RestaurantErrorCode;
 import com.foodmap.restaurant.mapper.RestaurantWriteMapper;
+import com.foodmap.restaurant.policy.RestaurantCityPolicy;
 import com.foodmap.restaurant.support.RestaurantIdentifiers;
 import com.foodmap.restaurant.vo.RestaurantManagementVo;
 import com.foodmap.security.dto.AuthenticatedActor;
@@ -72,6 +73,12 @@ public class RestaurantWriteService {
         var replacement = normalize(request);
         var current = lockAccessible(RestaurantIdentifiers.id(id), actor);
         requireActive(current);
+        // 旧客户端修改其他资料时保留已确认城市。位置改变时只接受本次明确提供的归属。
+        if (replacement.getCityName() == null && current.getLatitude() != null && current.getLongitude() != null
+                && replacement.getLatitude().compareTo(current.getLatitude()) == 0
+                && replacement.getLongitude().compareTo(current.getLongitude()) == 0) {
+            replacement.setCityName(current.getCityName());
+        }
         requireCategory(
                 replacement.getCategoryCode(),
                 current.getCategoryCode(),
@@ -114,6 +121,7 @@ public class RestaurantWriteService {
         var row = normalize(request);
         request.setName(row.getName());
         request.setAddress(row.getAddress());
+        request.setCityName(row.getCityName());
         request.setPricePerPerson(
                 row.getPricePerPerson() == null
                         ? null
@@ -178,6 +186,7 @@ public class RestaurantWriteService {
     private RestaurantManagementVo managementVo(RestaurantManagementEntity row) {
         var result = new RestaurantManagementVo();
         result.setRestaurant(RestaurantReadService.toVo(row, mapper.selectTags(row.getId())));
+        result.setCityName(row.getCityName());
         result.getRestaurant().setCoverPhoto(albums.covers(List.of(row.getId())).get(row.getId()));
         result.setDeleted(row.getDeletedAt() != null);
         return result;
@@ -201,6 +210,13 @@ public class RestaurantWriteService {
         }
         row.setName(text(request.getName(), 40, false));
         row.setAddress(text(request.getAddress(), 80, true));
+        if (request.getCityName() != null) {
+            String cityName = text(request.getCityName(), 32, false);
+            if (!RestaurantCityPolicy.isCanonical(cityName)) {
+                invalid("请选择有效的地级行政区或直辖市");
+            }
+            row.setCityName(cityName);
+        }
         row.setCategoryCode(request.getCategoryCode());
         row.setPriceKind(request.getPriceKind());
         BigDecimal price = request.getPricePerPerson();

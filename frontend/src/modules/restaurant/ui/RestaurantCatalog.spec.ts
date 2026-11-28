@@ -4,13 +4,18 @@ import type { App } from 'vue'
 import { createPinia, disposePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchRestaurantCategories, fetchRestaurants } from '../api/restaurantApi'
+import {
+  fetchRestaurantCategories,
+  fetchRestaurantCities,
+  fetchRestaurants,
+} from '../api/restaurantApi'
 import { categoryFixtures, pageFixture } from '../api/restaurant.test-data'
 import { useRestaurantCatalog } from '../model/catalog.store'
 import RestaurantCatalog from './RestaurantCatalog.vue'
 
 vi.mock('../api/restaurantApi', () => ({
   fetchRestaurantCategories: vi.fn(),
+  fetchRestaurantCities: vi.fn(),
   fetchRestaurants: vi.fn(),
 }))
 
@@ -76,6 +81,48 @@ describe('restaurant catalog API integration', () => {
     expect(host.textContent).not.toContain('银桦餐厅')
   })
 
+  it('loads cities only on first open, searches locally and switches to page one with the current filters', async () => {
+    vi.mocked(fetchRestaurantCities).mockResolvedValue(['成都市', '重庆市', '杭州市'])
+    expect(fetchRestaurantCities).not.toHaveBeenCalled()
+    expect(fetchRestaurants).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cityName: '成都市' }),
+      1,
+      8,
+      expect.any(AbortSignal),
+    )
+    const store = useRestaurantCatalog(pinia)
+    store.filters.category = 'HOT_POT'
+    await settle()
+    store.goToPage(2)
+    await settle()
+    const trigger = host.querySelector<HTMLButtonElement>('.city-trigger')!
+    trigger.click()
+    await settle()
+    expect(fetchRestaurantCities).toHaveBeenCalledTimes(1)
+    trigger.click()
+    await settle()
+    trigger.click()
+    await settle()
+    const search = host.querySelector<HTMLInputElement>('input[aria-label="搜索城市"]')!
+    search.value = '杭'
+    search.dispatchEvent(new Event('input'))
+    await settle()
+    expect(fetchRestaurantCities).toHaveBeenCalledTimes(1)
+    expect(store.page).toBe(2)
+    const rows = host.querySelectorAll<HTMLButtonElement>('.city-panel li button')
+    expect([...rows].map((option) => option.textContent?.trim())).toEqual(['杭州'])
+    rows[0]!.click()
+    await settle()
+    expect(store.page).toBe(1)
+    expect(fetchRestaurants).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cityName: '杭州市', category: 'HOT_POT' }),
+      1,
+      8,
+      expect.any(AbortSignal),
+    )
+    expect(host.querySelector('.city-panel')).toBeNull()
+  })
+
   /** 分类只有导航一个入口，翻页后切分类仍保留排序及停业语义，每次只请求一次。 */
   it('changes category without resetting independent filters and resets pagination once', async () => {
     const store = useRestaurantCatalog(pinia)
@@ -96,6 +143,7 @@ describe('restaurant catalog API integration', () => {
     expect(fetchRestaurants).toHaveBeenLastCalledWith(
       {
         keyword: '',
+        cityName: '成都市',
         latitude: undefined,
         longitude: undefined,
         category: 'HOT_POT',
@@ -227,6 +275,7 @@ describe('restaurant catalog API integration', () => {
       expect(fetchRestaurants).toHaveBeenLastCalledWith(
         {
           keyword: '',
+          cityName: '成都市',
           latitude: undefined,
           longitude: undefined,
           category: 'HOT_POT',
@@ -342,6 +391,7 @@ describe('restaurant catalog API integration', () => {
     expect(fetchRestaurants).toHaveBeenLastCalledWith(
       {
         keyword: '',
+        cityName: '成都市',
         latitude: undefined,
         longitude: undefined,
         category: 'HOT_POT',

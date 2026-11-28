@@ -216,6 +216,7 @@ watch(
   () => [form.latitude, form.longitude],
   () => {
     form.locationConfirmed = false
+    form.cityName = ''
   },
   { flush: 'sync' },
 )
@@ -282,7 +283,7 @@ async function load() {
             ? fetchRestaurantManagement(props.id, token, controller.signal).then((snapshot) => {
                 if (snapshot.deleted)
                   throw new Error('店铺已删除，历史资料仍保留，请返回商户管理。')
-                return snapshot.restaurant
+                return { ...snapshot.restaurant, cityName: snapshot.cityName }
               })
             : fetchCorrectionSource(props.id, controller.signal),
       fetchRestaurantCategories(controller.signal),
@@ -354,6 +355,7 @@ function selectPlace(place: MerchantSubmissionPlace) {
   form.address = place.address
   form.latitude = place.latitude.toFixed(6)
   form.longitude = place.longitude.toFixed(6)
+  form.cityName = place.cityName ?? ''
   form.locationConfirmed = true
   selectedPlace.value = place.name
   errors.value = {}
@@ -366,6 +368,15 @@ function validateShop() {
     return false
   }
   errors.value = validateRestaurantDraft(form, extra.restaurantType, !props.admin)
+  if (
+    props.submission &&
+    !isRequest.value &&
+    !form.cityName &&
+    !errors.value.latitude &&
+    !errors.value.longitude
+  ) {
+    errors.value.cityName = '请搜索并选择门店，以确认所属城市。'
+  }
   const category = categories.value.find((c) => c.code === form.categoryCode)
   if (
     extra.restaurantType === 'REGULAR' &&
@@ -670,8 +681,11 @@ onBeforeUnmount(() => {
                 :disabled="saving"
                 :invalid="!!errors.name"
                 :name-error="errors.name"
+                :choose-city="submission || !!form.cityName"
                 @select="selectPlace"
               />
+              <p v-if="form.cityName" class="intro">所属城市 {{ form.cityName }}</p>
+              <p v-if="errors.cityName" class="error" role="alert">{{ errors.cityName }}</p>
               <div class="fields">
                 <label v-if="extra.restaurantType === 'REGULAR'"
                   >美食品类<select

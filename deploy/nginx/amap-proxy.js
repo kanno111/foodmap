@@ -91,7 +91,10 @@ function handle(r) {
         if (path === '/v3/place/text') {
             var keyword = first(pairs, 'keywords').trim();
             var page = first(pairs, 'page') || '1';
-            if (!keyword || keyword.length > 100 || !/^(?:[1-9]\d?|100)$/.test(page)) {
+            var city = first(pairs, 'city');
+            var cityLimited = first(pairs, 'citylimit') === 'true';
+            if (!keyword || keyword.length > 100 || !/^(?:[1-9]\d?|100)$/.test(page)
+                    || (cityLimited && !/^(?:110000|120000|310000|500000|[1-9]\d(?:0[1-9]|[1-9]\d)00)$/.test(city))) {
                 fail(r, 400, 'MAP_SEARCH_INVALID_QUERY');
                 return;
             }
@@ -100,8 +103,10 @@ function handle(r) {
             pairs = replace(pairs, 'types', '050000');
             pairs = replace(pairs, 'offset', '10');
             pairs = replace(pairs, 'extensions', 'base');
-            pairs = replace(pairs, 'city', '成都市');
-            pairs = replace(pairs, 'citylimit', 'false');
+            pairs = replace(pairs, 'city', cityLimited ? city : '成都市');
+            pairs = replace(pairs, 'citylimit', cityLimited ? 'true' : 'false');
+            // 投稿读取原生 JSON，仍使用 SDK 地点请求通道和现有 JS API Key。
+            if (cityLimited) pairs = replace(pairs, 's', 'rsv3');
         }
         pairs = replace(pairs, 'key', key);
         pairs = replace(pairs, 'jscode', code);

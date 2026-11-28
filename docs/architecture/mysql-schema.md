@@ -244,6 +244,7 @@ restaurant模块拥有餐厅资料、分类、标签、审核申请、相册与�
 | `price_per_person` | `smallint unsigned` | 是 | 整数元人均，未知为NULL，不使用0代替 |
 | `price_kind` | `varchar(16)` | 否 | UNKNOWN未知、EXACT填报金额、ESTIMATE估值；填报不代表已核实；默认UNKNOWN |
 | `address` | `varchar(80)` | 是 | 真实地址，未知为NULL |
+| `city_name` | `varchar(32)` | 是 | V60 新增。地级行政区或直辖市的标准全称，例如成都市。历史或未确认的记录保持NULL |
 | `latitude` | `decimal(8,6)` | 是 | GCJ-02纬度 |
 | `longitude` | `decimal(9,6)` | 是 | GCJ-02经度 |
 | `needs_location` | `tinyint(1)` | 否 | 是否待定位，须与坐标空值一致；默认1 |
@@ -313,7 +314,7 @@ position范围0～7；同一餐厅内标签及位置分别唯一。
 | `submitted_by` | `bigint unsigned` | 否 | 提交账号逻辑ID，由服务端填写 |
 | `client_request_id` | `char(36)` | 否 | 客户端UUID，同账号内唯一 |
 | `request_hash` | `binary(32)` | 否 | 规范化申请内容的SHA-256，判断重试内容一致性 |
-| `proposed_data` | `json` | 否 | 用户原始业务申请快照，管理员修订不得覆盖；原始图片顺序和提交摘要继续用于重试核对 |
+| `proposed_data` | `json` | 否 | 用户原始业务申请快照，已确认城市存为 `cityName`。管理员修订不得覆盖，原始图片顺序和提交摘要继续用于重试核对 |
 | `status` | `varchar(16)`，ascii_bin | 否 | PENDING待审、APPROVED通过、REJECTED驳回、WITHDRAWN本人撤回；默认PENDING |
 | `approval_mode` | `varchar(24)`，ascii_bin | 是 | 默认NULL；CREATED创建新店、UPDATED更新资料、LINKED_EXISTING关联已有店铺 |
 | `created_at` | `timestamp(6)` | 否 | 提交时间；默认CURRENT_TIMESTAMP(6) |

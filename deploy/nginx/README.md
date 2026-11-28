@@ -121,6 +121,10 @@ sudo python3 /opt/foodmap/nginx-jsonp-update-20261120/update-jsonp.py
 
 2026-11-20用户已执行上述更新，配置校验与reload成功，备份为`/etc/nginx/.foodmap-before-jsonp-wmem_94n`。独立核对代理文件指纹一致，线上提交页真实搜索／选店回填通过，普通JSON及非法callback检查正常；认证与所有业务写入均模拟或阻止，未提交测试申请。Nginx及后端保持active，未重启后端。源码仍在`fix/amap-jsonp`待提交，服务器配置已单独生效。
 
+### 提交店铺按城市搜索
+
+发布 Web 城市选择前，将当前版本的 `update-jsonp.py`、`amap-proxy.js` 和 `amap-proxy-common.conf` 放在服务器同一目录，以管理员权限运行该目录下的 `sudo python3 update-jsonp.py`。更新脚本接受原始配置和上一版 JSONP 修复的已知指纹，沿用备份、校验及失败恢复流程。旧前端继续按成都优先搜索。更新代理后可先用 `GET /_AMapService/v3/place/text?keywords=火锅&city=500000&citylimit=true` 核对返回的门店区划。应用发布后通过提交店铺页面分别搜索成都和重庆，检查结果中的城市和地址。
+
 - 初始化只用于全新服务器，拒绝既有项目配置、同名符号链接或除Ubuntu默认站点之外的已启用站点。原默认站点文件不删除，停用其启用链接前保存原内容和链接目标到root专属`/etc/nginx/.foodmap-before-*/`。
 - 项目配置安装到`/etc/nginx/sites-available/foodmap`，启用链接为`sites-enabled/foodmap`；代理脚本和公用配置位于`/etc/nginx/foodmap/`，凭据配置仅root以0600读取。真实JS Key和安全密钥只在私有文件中提供，不进入源码。
 - 在安装前后均执行`nginx -t`，后者失败时撤回本次启用链接、恢复默认站点链接，并将未启用的新配置保存在上述私有备份目录。诊断仅保存到root专属`validation.log`，不自动打印可能含凭据的错误正文。脚本不reload；既有Nginx进程继续使用旧配置，由管理员校验成功后显式reload。

@@ -2,7 +2,11 @@ import { defineStore } from 'pinia'
 import { useUserLocation } from '@/modules/map/model/userLocation.store'
 import { computed, onScopeDispose, reactive, ref, watch } from 'vue'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
-import { fetchRestaurantCategories, fetchRestaurants } from '../api/restaurantApi'
+import {
+  fetchRestaurantCategories,
+  fetchRestaurantCities,
+  fetchRestaurants,
+} from '../api/restaurantApi'
 import type { RestaurantCategory, RestaurantPage } from '../api/restaurantApi'
 import type { CatalogFilters, RestaurantReadModel } from './restaurant.types'
 
@@ -16,6 +20,25 @@ export const useRestaurantCatalog = defineStore('restaurant-catalog', () => {
     maxPrice: null,
     maxDistanceMeters: null,
   })
+  const cityName = ref('成都市')
+  const cities = ref<string[] | null>(null)
+  const citiesLoading = ref(false)
+  const citiesError = ref(false)
+  // 城市只影响首页目录，不修改与地图共用的筛选对象。
+  const queryFilters = computed(() => ({ ...filters, cityName: cityName.value }))
+  const queryKey = computed(() => JSON.stringify(queryFilters.value))
+  async function loadCities(): Promise<void> {
+    if (cities.value !== null || citiesLoading.value) return
+    citiesLoading.value = true
+    citiesError.value = false
+    try {
+      cities.value = await fetchRestaurantCities()
+    } catch {
+      citiesError.value = true
+    } finally {
+      citiesLoading.value = false
+    }
+  }
   const userLocation = useUserLocation()
   // 单次位置跨首页/地图共享，移除校区隐式过滤；每次重新定位后触发完整服务端排序。
   watch(
@@ -44,7 +67,7 @@ export const useRestaurantCatalog = defineStore('restaurant-catalog', () => {
   const truncated = ref(false)
   const loadedFilters = ref('')
   // 防抖等待期间也须核对条件快照，不能用上一轮的空结果显示“未找到”投稿入口。
-  const resultsCurrent = computed(() => loadedFilters.value === JSON.stringify(filters))
+  const resultsCurrent = computed(() => loadedFilters.value === queryKey.value)
   const hasMore = computed(
     () =>
       continuous.value &&
@@ -116,7 +139,7 @@ export const useRestaurantCatalog = defineStore('restaurant-catalog', () => {
     loadedPage.value = 0
     loadedFilters.value = ''
     if (continuous.value) visibleRestaurants.value = []
-    const snapshot = { ...filters }
+    const snapshot = queryFilters.value
     // 选中距离但尚未取得原点时等待定位，不能用后端无原点的稳定次序冒充距离排序。
     if (snapshot.sort === 'distance' && (snapshot.latitude == null || snapshot.longitude == null)) {
       visibleRestaurants.value = []
@@ -159,7 +182,7 @@ export const useRestaurantCatalog = defineStore('restaurant-catalog', () => {
     if (!active || !hasMore.value || loading.value || loadingMore.value) return
     const requestGeneration = generation
     const nextPage = loadedPage.value + 1
-    const snapshot = { ...filters }
+    const snapshot = queryFilters.value
     controller = new AbortController()
     const signal = controller.signal
     loadingMore.value = true
@@ -202,16 +225,16 @@ export const useRestaurantCatalog = defineStore('restaurant-catalog', () => {
 
   // 同步重置页码，再由批处理的查询watch统一发起一次请求。
   watch(
-    filters,
+    queryKey,
     () => {
       // 同步隔离旧追加响应，防止筛选变化与下一次watch之间的微任务混入旧数据。
       cancelPending()
       page.value = 1
     },
-    { deep: true, flush: 'sync' },
+    { flush: 'sync' },
   )
   watch(
-    () => [JSON.stringify(filters), page.value, continuous.value],
+    () => [queryKey.value, page.value, continuous.value],
     (current, previous) => {
       if (!active) return
       cancelPending()
@@ -277,6 +300,11 @@ export const useRestaurantCatalog = defineStore('restaurant-catalog', () => {
       cancelPending()
     },
     filters,
+    cityName,
+    cities,
+    citiesLoading,
+    citiesError,
+    loadCities,
     page,
     pageSize,
     continuous,

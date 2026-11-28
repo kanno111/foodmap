@@ -108,11 +108,13 @@ class RestaurantSearchQueryIntegrationTest {
         jdbc.update("UPDATE restaurants SET supports_dine_in=TRUE WHERE id IN (101,106)");
         jdbc.update("UPDATE restaurants SET supports_dine_in=FALSE WHERE id=102");
         jdbc.update("UPDATE restaurants SET business_status='CLOSED' WHERE id=106");
+        jdbc.update("UPDATE restaurants SET city_name='成都市' WHERE id=101");
+        jdbc.update("UPDATE restaurants SET city_name='重庆市' WHERE id=102");
         index = "foodmap-search-it-" + UUID.randomUUID().toString().replace("-", "");
         properties.setIndexAlias(index + "-alias");
         String definition;
         try (var stream =
-                getClass().getResourceAsStream("/elasticsearch/restaurant-search-v004.json")) {
+                getClass().getResourceAsStream("/elasticsearch/restaurant-search-v005.json")) {
             var mapping = json.readValue(stream, Map.class);
             mapping.remove("aliases");
             definition = json.writeValueAsString(mapping);
@@ -362,6 +364,24 @@ class RestaurantSearchQueryIntegrationTest {
     }
 
     /** 无关键词目录的匹配、资料、排序与分页由真实ES直接返回。 */
+    @Test
+    void cityFiltersProjectionAndSqlBeforeTotalAndPaging() {
+        var query = query("清水河咖啡");
+        query.setCityName("重庆市");
+        query.setPageSize(1);
+
+        var indexed = queries.list(query);
+        assertThat(indexed.getSearch().getEngine()).isEqualTo("ES");
+        assertThat(indexed.getTotal()).isEqualTo(1);
+        assertThat(indexed.getRecords()).extracting(r -> r.getId()).containsExactly("102");
+
+        properties.setEnabled(false);
+        var sql = queries.list(query);
+        assertThat(sql.getSearch().getEngine()).isEqualTo("MYSQL");
+        assertThat(sql.getTotal()).isEqualTo(indexed.getTotal());
+        assertThat(sql.getRecords()).extracting(r -> r.getId()).containsExactly("102");
+    }
+
     @Test
     void emptyKeywordListsCatalogFromEs() {
         var q = query("");

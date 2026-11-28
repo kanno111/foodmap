@@ -59,6 +59,26 @@ process.stdout.write(JSON.stringify(results));
         self.assertEqual(query["city"], ["成都市"])
         self.assertEqual(query["citylimit"], ["false"])
 
+    def test_city_limit_forwards_only_one_valid_adcode_and_never_falls_back(self):
+        from urllib.parse import parse_qs
+
+        accepted, *rejected = self.run_requests([{"args": args} for args in (
+            "keywords=test&city=500000&citylimit=true&city=510100&CITYLIMIT=false&S=other",
+            "keywords=test&city=Chongqing&citylimit=true",
+            "keywords=test&citylimit=true",
+            "keywords=test&city=000000&citylimit=true",
+            "keywords=test&city=510181&citylimit=true",
+        )])
+        query = parse_qs(accepted["query"])
+        self.assertEqual(query["city"], ["500000"])
+        self.assertEqual(query["citylimit"], ["true"])
+        self.assertNotIn("CITYLIMIT", query)
+        self.assertEqual(query["s"], ["rsv3"])
+        self.assertNotIn("S", query)
+        for result in rejected:
+            self.assertEqual(result["status"], 400)
+            self.assertNotIn("target", result)
+
     def test_forbidden_paths_methods_and_encoded_path_delimiters_never_redirect(self):
         requests = [
             {"path": "/_AMapService/v3/place/around"},

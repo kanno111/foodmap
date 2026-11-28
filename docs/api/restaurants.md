@@ -9,6 +9,7 @@
 | 方法 | 路径 | 权限 | 成功状态 | 详细协议 |
 | --- | --- | --- | --- | --- |
 | GET | `/api/restaurant-categories` | 公开 | 200 | [分类](#categories) |
+| GET | `/api/restaurant-cities` | 公开 | 200 | [城市](#cities) |
 | GET | `/api/restaurants` | 公开 | 200 | [目录](#catalog) |
 | GET | `/api/restaurants/map-points` | 公开 | 200 | [详情与地图点位](#detail-map) |
 | GET | `/api/restaurants/{id}` | 公开 | 200 | [详情与地图点位](#detail-map) |
@@ -58,6 +59,12 @@
 
 普通餐厅只指定一个主营类目，没有二级分类；食堂由restaurantType=CANTEEN表示，categoryCode和categoryName均为null，不归入九类。旧申请的原始分类编码和已完成审核快照保留；旧待审食堂首次通过时使用空分类，普通餐厅需选用可用分类。
 
+<a id="cities"></a>
+
+### 城市
+
+`GET /api/restaurant-cities` 无参数，返回至少有一家未删除店铺的城市标准全称，去重后按城市名排序。示例 `data: ["成都市", "重庆市"]`。尚未确认归属的商户不生成城市选项。首页在第一次展开选择器时读取名单，之后在页面内筛选。
+
 <a id="catalog"></a>
 
 ### 目录
@@ -75,6 +82,7 @@
 | 参数 | 默认值 | 规则 |
 | --- | --- | --- |
 | `keyword` | 空 | 最长100字符；ES多字跨名称/分类/标签/地址AND分词匹配，单个汉字查四字段单字索引；SQL降级使用原有包含匹配；输入不作为查询语法 |
+| `cityName` | 无 | 地级行政区或直辖市的标准全称，例如 `成都市`。精确筛选，空或省略不限，非法名称返回400 |
 | `category` | 空 | 大写分类编码；空表示不限 |
 | `restaurantType` | 空 | REGULAR普通餐厅 / CANTEEN食堂；空或省略不限，大小写严格匹配 |
 | `diningMode` | 空 | dineIn支持堂食 / delivery支持外卖；空或省略不限，只匹配明确true，false及null不命中 |
@@ -91,6 +99,8 @@
 条件取交集，在完整可见集合上排序、计数后分页。score按五分制reputationScore八位小数降序，真正同分按participantCount降序、数字ID升序，未知末尾；页面显示一位小数，不用于截断排序精度。reviews按reviewCount降序、数字ID升序表示热度；旧recommend参数兼容同一热度规则，不再按推荐率排序。距离按请求参照原点升序，未定位商户排后；无原点时不应在前端冒充距离排序。前端校区选项只发送固定GCJ-02坐标，不请求定位；仅距我选项触发定位，坐标不保存到账号。视口不支持跨日期变更线，边界包含，提供视口时排除待定位记录。
 
 餐厅类型读取正式restaurant_type，独立于美食品类；食堂本身无美食分类，因此CANTEEN与具体美食品类组合时返回空集合，不自动忽略任一条件。类型及用餐方式过滤同时作用于COUNT、排序分页和地图点位。非法restaurantType/diningMode返回400 `COMMON_VALIDATION_FAILED`，不静默忽略。查询引擎和搜索降级的响应约定见[搜索契约](#search)。
+
+指定城市时，MySQL 和 ES 都在计数及分页前精确匹配城市全称。索引缺少城市字段或当前版本投影有未同步变更时，查询保留城市条件并使用 MySQL。Web 首页默认发送 `cityName=成都市`。
 
 **响应**
 
@@ -233,6 +243,8 @@
 
 管理员直接新建／编辑无需位置确认勾选，`locationConfirmed`可省略、null或false；仍要求经纬度完整、范围合法且最多6位小数。普通用户投稿及审核输入保持原位置确认规则。
 
+`cityName`为地级行政区或直辖市的标准全称。新版网页直接新建时选店自动填入，旧客户端可省略。更新省略城市且坐标一致时保留已有城市，位置变化且省略城市时归属为待确认。
+
 兼容旧客户端：restaurantType省略或null且两个用餐方式均为null/省略时，新建为普通餐厅/用餐方式未知，更新保持已有这三个字段；省略类型却提交非null用餐方式返回400。非法类型400；未知、身份和申请UUID字段仍不接受。不改变用户投稿和审核的独立DTO及历史幂等摘要。
 
 管理员直接新建食堂的示例（PUT同样支持）：
@@ -247,7 +259,7 @@
 
 | 接口 | 规则与响应 |
 | --- | --- |
-| `GET /api/restaurants/{id}/management` | 仅管理员可读，包含已删除记录；成功data为`{restaurant,deleted}` |
+| `GET /api/restaurants/{id}/management` | 仅管理员可读，包含已删除记录；成功data为`{restaurant,cityName,deleted}`，`cityName`可空 |
 | `POST /api/restaurants` | 基础字段加restaurantType、supportsDineIn、supportsDelivery；可附带photos，不含申请UUID；201及Location，data为管理资料 |
 | `PUT /api/restaurants/{id}` | 与直接新建相同字段，完整替换，成功200及管理资料；省略可选项按默认值处理，不能当PATCH |
 | `DELETE /api/restaurants/{id}` | 无请求体/版本；软删除，成功200、deleted=true，不删除标签与统计，公开入口隐藏 |

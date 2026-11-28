@@ -184,6 +184,7 @@ const snapshotFields = [
   'priceKind',
   'pricePerPerson',
   'address',
+  'cityName',
   'latitude',
   'longitude',
   'locationConfirmed',

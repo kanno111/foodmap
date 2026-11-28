@@ -8,6 +8,7 @@ import com.foodmap.common.exception.BusinessException;
 import com.foodmap.restaurant.config.RestaurantSearchCircuitBreakerConfiguration;
 import com.foodmap.restaurant.config.RestaurantSearchQueryProperties;
 import com.foodmap.restaurant.dto.*;
+import com.foodmap.restaurant.exception.RestaurantSearchStaleException;
 import com.foodmap.restaurant.search.RestaurantSearchReader;
 import com.foodmap.restaurant.service.*;
 import com.foodmap.restaurant.vo.*;
@@ -67,6 +68,18 @@ class RestaurantQueryServiceTest {
         assertThat(result.getTotalPages()).isEqualTo(1);
         assertThat(result.getPageSize()).isEqualTo(8);
         verifyNoInteractions(mysql);
+    }
+
+    @Test
+    void fallbackKeepsCityForOldIndexAndPendingSync() throws Exception {
+        var query = query("火锅");
+        query.setCityName("重庆市");
+        when(reader.search(query, false)).thenThrow(new RestaurantSearchStaleException());
+        assertThat(service.list(query).getSearch().getReason()).isEqualTo("DATA_CHANGED");
+        when(mysql.hasUnsyncedSearchChanges()).thenReturn(true);
+        assertThat(service.list(query).getSearch().getReason()).isEqualTo("SYNC_PENDING");
+        verify(reader).search(query, false);
+        verify(mysql, times(2)).list(argThat(value -> "重庆市".equals(value.getCityName())));
     }
 
     /** 单字不再选择SQL引擎，补充平面汉字也走同一路径；默认综合分且显式排序仍有效。 */

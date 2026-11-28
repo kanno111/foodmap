@@ -10,6 +10,7 @@ import com.foodmap.restaurant.exception.RestaurantErrorCode;
 import com.foodmap.restaurant.mapper.MyRestaurantRequestMapper;
 import com.foodmap.restaurant.mapper.RestaurantCatalogMapper;
 import com.foodmap.restaurant.policy.RestaurantSubmissionHashPolicy;
+import com.foodmap.restaurant.policy.RestaurantCityPolicy;
 import com.foodmap.restaurant.support.RestaurantIdentifiers;
 import com.foodmap.restaurant.vo.MyRestaurantRequestViews;
 import com.foodmap.review.service.ReviewSubmissionLifecycleService;
@@ -52,6 +53,7 @@ public class MyRestaurantRequestService {
                     "priceKind",
                     "pricePerPerson",
                     "address",
+                    "cityName",
                     "latitude",
                     "longitude",
                     "locationConfirmed",
@@ -172,6 +174,7 @@ public class MyRestaurantRequestService {
         if (!"PENDING".equals(locked.getStatus())) {
             throw new BusinessException(RestaurantErrorCode.STATE_CONFLICT, "仅待审核申请可以修改");
         }
+        RestaurantCityPolicy.retainForSameLocation(request, json.readTree(locked.getProposedData()));
         List<Long> photoIds = parsePhotoIds(request);
         replacePhotos(owner, requestId, photoIds);
         String reviewHash =

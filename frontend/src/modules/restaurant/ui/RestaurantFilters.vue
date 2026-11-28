@@ -5,6 +5,7 @@ import { useRestaurantCatalog } from '../model/catalog.store'
 import RestaurantAdvancedFilters from './RestaurantAdvancedFilters.vue'
 import RandomRestaurant from './RandomRestaurant.vue'
 import NearbyLocation from './NearbyLocation.vue'
+import CatalogCityFilter from './CatalogCityFilter.vue'
 
 /** 分类、排序与经营状态直接操作同一份目录状态，由store统一重置页码并查询。 */
 const catalog = useRestaurantCatalog()
@@ -20,6 +21,7 @@ const cuisineCategories = computed(() =>
 <template>
   <div class="catalog-filters">
     <div class="catalog-search-line">
+      <CatalogCityFilter />
       <form class="search-field" role="search" @submit.prevent="catalog.load">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="1.6" />

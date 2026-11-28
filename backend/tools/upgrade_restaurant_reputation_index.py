@@ -71,11 +71,11 @@ def with_reputation(documents, rows, bootstrap_pending=False):
     return result
 
 
-def write_batch(client, documents):
+def write_batch(client, documents, index=CURRENT):
     """逐项确认Bulk成功，保持原external版本；不把HTTP成功等同于每项写入成功。"""
     lines = []
     for identity, item in documents:
-        lines.append(json.dumps({"index": {"_index": CURRENT, "_id": identity,
+        lines.append(json.dumps({"index": {"_index": index, "_id": identity,
                                            "version": item["version"], "version_type": "external"}}))
         lines.append(json.dumps(item["source"], ensure_ascii=False))
     request = Request(client.url + "/_bulk", data=("\n".join(lines) + "\n").encode("utf-8"),

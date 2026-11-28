@@ -12,6 +12,24 @@ describe('高德安全代理', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+  it('严格搜索仅接受六位区划编码，保留选中城市并覆盖重复参数', () => {
+    vi.mocked(https.get).mockReturnValue(new PassThrough() as never)
+    expect(proxy('/v3/place/text?keywords=eat&city=Chongqing&citylimit=true').statusCode).toBe(400)
+    expect(proxy('/v3/place/text?keywords=eat&citylimit=true').statusCode).toBe(400)
+    expect(proxy('/v3/place/text?keywords=eat&city=510181&citylimit=true').statusCode).toBe(400)
+    expect(proxy('/v3/place/text?keywords=eat&city=500000%0A&citylimit=true').statusCode).toBe(400)
+    expect(https.get).not.toHaveBeenCalled()
+    proxy(
+      '/v3/place/text?keywords=eat&city=500000&citylimit=true&City=510100&CITYLIMIT=false&S=other',
+    )
+    const target = vi.mocked(https.get).mock.calls[0]![0] as URL
+    expect(target.searchParams.getAll('city')).toEqual(['500000'])
+    expect(target.searchParams.getAll('citylimit')).toEqual(['true'])
+    expect(target.searchParams.has('City')).toBe(false)
+    expect(target.searchParams.has('CITYLIMIT')).toBe(false)
+    expect(target.searchParams.getAll('s')).toEqual(['rsv3'])
+    expect(target.searchParams.has('S')).toBe(false)
+  })
   function proxy(url: string, method = 'GET', secret = 'server-only-secret') {
     let handler!: (req: IncomingMessage, res: ServerResponse) => void
     const plugin = amapProxy({ VITE_AMAP_KEY: 'configured-key', AMAP_SECURITY_JS_CODE: secret })

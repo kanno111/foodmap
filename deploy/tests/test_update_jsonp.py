@@ -23,13 +23,14 @@ class JsonpUpdateTest(unittest.TestCase):
         for name in updater.FILES:
             (source / name).write_bytes(b"new public proxy\n")
             (destination / name).write_bytes(b"old public proxy\r\n")
-            baseline[name] = hashlib.sha256(b"old public proxy\n").hexdigest()
+            baseline[name] = (hashlib.sha256(b"old public proxy\n").hexdigest(),)
         (destination / "credentials.conf").write_bytes(b"private-test-value")
         return source, destination, baseline
 
     def test_update_backs_up_both_files_preserves_secrets_and_is_repeatable(self):
         with tempfile.TemporaryDirectory() as temporary:
             source, destination, baseline = self.fixture(Path(temporary))
+            baseline["amap-proxy.js"] = ("original-baseline-hash", *baseline["amap-proxy.js"])
             validate, reload = Mock(), Mock()
             with patch.object(updater, "FILES", baseline):
                 backup = updater.update(source, destination, validate, reload)

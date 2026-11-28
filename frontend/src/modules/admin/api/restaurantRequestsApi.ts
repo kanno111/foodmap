@@ -55,6 +55,7 @@ export interface ReviewInput {
   priceKind: 'UNKNOWN' | 'EXACT' | 'ESTIMATE'
   pricePerPerson: number | null
   address: string | null
+  cityName?: string
   latitude: number
   longitude: number
   locationConfirmed: boolean

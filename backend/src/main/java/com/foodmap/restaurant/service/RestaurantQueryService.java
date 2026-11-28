@@ -66,6 +66,9 @@ public class RestaurantQueryService {
             } catch (CallNotPermittedException open) {
                 fallback(status, "ES_CIRCUIT_OPEN", false);
                 result = mysql.list(sqlQuery(query));
+            } catch (RestaurantSearchStaleException changed) {
+                fallback(status, "DATA_CHANGED", false);
+                result = mysql.list(sqlQuery(query));
             } catch (IOException | RuntimeException unavailable) {
                 fallback(status, "ES_UNAVAILABLE", false);
                 result = mysql.list(sqlQuery(query));
@@ -148,7 +151,7 @@ public class RestaurantQueryService {
                 result.setReason("DISABLED");
             } else if (readers.getIfAvailable() == null) {
                 fallback(result, "ES_UNAVAILABLE", map);
-            } else if (map && mysql.hasUnsyncedSearchChanges()) {
+            } else if ((map || query.hasCityFilter()) && mysql.hasUnsyncedSearchChanges()) {
                 fallback(result, "SYNC_PENDING", map);
             } else {
                 result.setEngine("ES");

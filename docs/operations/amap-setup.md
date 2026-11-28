@@ -4,7 +4,7 @@
 
 1. 在高德控制台为本应用申请Web端（JS API）Key，核对账号用途、配额及开发/生产域名白名单。不要使用Web服务Key替代JS Key，不将安全密钥发送到聊天或纳入Git。
 2. 将frontend/.env.example复制成被忽略的frontend/.env.local，填写VITE_AMAP_KEY和AMAP_SECURITY_JS_CODE；设置VITE_AMAP_SERVICE_HOST=/_AMapService。只有浏览器JS Key和代理路径允许进入VITE变量，安全密钥变量禁止添加VITE_前缀。
-3. 开发服务器已在config/amapProxy.ts实现同源安全代理，Vite仅在服务端读取AMAP_SECURITY_JS_CODE并附加到固定高德上游请求。仅允许GET、地图初始化/样式、精确的/v3/assistant/coordinate/convert坐标转换及/v3/place/text餐饮关键词搜索路径；覆盖客户端Key/安全密钥，不允许任意URL或周边/详情等其他搜索路径。地点搜索关键词1–100字符、page为1–100，代理固定types=050000、offset=10、extensions=base、city=成都市、citylimit=false。单次上游超时8秒、错误输出固定代码，不记录带密钥URL。按[高德官方方案](https://lbs.amap.com/api/javascript-api-v2/guide/abc/jscode)配置生产Nginx时需独立提供安全密钥及对应路径/参数限制，Vite开发代理不会进入生产静态构建，不能只部署dist便认为生产代理已生效。
+3. 开发服务器已在config/amapProxy.ts实现同源安全代理，Vite仅在服务端读取AMAP_SECURITY_JS_CODE并附加到固定高德上游请求。仅允许GET、地图初始化/样式、精确的/v3/assistant/coordinate/convert坐标转换及/v3/place/text餐饮关键词搜索路径；覆盖客户端Key/安全密钥，不允许任意URL或周边/详情等其他搜索路径。搜索参数见[地点搜索代理](../api/system.md#amap-proxy)。单次上游超时8秒、错误输出固定代码，不记录带密钥URL。按[高德官方方案](https://lbs.amap.com/api/javascript-api-v2/guide/abc/jscode)配置生产Nginx时需独立提供安全密钥及对应路径/参数限制，Vite开发代理不会进入生产静态构建。
 4. 本地修改环境变量后重启Vite；生产环境需在构建时提供浏览器配置，安全密钥仅在运行代理配置中提供。禁止打印完整环境或带密钥的转发URL。
 5. 使用真实餐厅验证底图、落点、移动后自动查询、悬停、失败降级及手机布局；确认高德标识/版权不被面板遮挡。测试查询接口与真实SDK分别记录证据。浏览器本人定位仍需要HTTPS和授权，当前地图查询无需本人定位。
 

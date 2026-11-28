@@ -8,6 +8,7 @@ import com.foodmap.restaurant.entity.RestaurantTagEntity;
 import com.foodmap.restaurant.exception.RestaurantErrorCode;
 import com.foodmap.restaurant.exception.RestaurantSearchStaleException;
 import com.foodmap.restaurant.mapper.RestaurantCatalogMapper;
+import com.foodmap.restaurant.policy.RestaurantCityPolicy;
 import com.foodmap.restaurant.support.RestaurantIdentifiers;
 import com.foodmap.restaurant.vo.RestaurantCategoryVo;
 import com.foodmap.restaurant.vo.RestaurantMapPointVo;
@@ -77,6 +78,10 @@ public class RestaurantReadService {
                             return vo;
                         })
                 .toList();
+    }
+
+    public List<String> cities() {
+        return mapper.selectVisibleCities().stream().filter(RestaurantCityPolicy::isCanonical).toList();
     }
 
     /** 数据库完成全局查询后只批量补充当前页标签，不进行页内筛选或重新排序。 */

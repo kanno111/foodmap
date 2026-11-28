@@ -24,6 +24,9 @@ public interface RestaurantCatalogMapper {
     /** 包含停用分类以支持旧记录筛选，按字典顺序和编码稳定返回。 */
     List<RestaurantCategoryEntity> selectCategories();
 
+    /** 一个城市只返回一次，且至少有一家公开可见的商户。 */
+    List<String> selectVisibleCities();
+
     /** 公开详情只读未删除餐厅，缺失和已删除均返回 null。 */
     RestaurantEntity selectVisibleById(@Param("id") long id);
 

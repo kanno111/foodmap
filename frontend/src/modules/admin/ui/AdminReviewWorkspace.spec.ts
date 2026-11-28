@@ -59,6 +59,7 @@ describe('审核工作区资料展示与操作', () => {
         categoryCode: 'FAST',
         categoryName: '快餐简餐',
         address: '南门 12 号',
+        cityName: '成都市',
         latitude: 30.75,
         longitude: 103.93,
         locationConfirmed: true,
@@ -128,7 +129,8 @@ describe('审核工作区资料展示与操作', () => {
     )
     await mount()
     expect(host.querySelector('.comparison thead')).toBeNull()
-    expect(host.querySelectorAll('.comparison tbody tr')).toHaveLength(11)
+    expect(host.querySelectorAll('.comparison tbody tr')).toHaveLength(12)
+    expect(host.querySelector('.comparison')?.textContent).toContain('所属城市')
     expect(host.querySelectorAll('.comparison tbody tr:first-child > *')).toHaveLength(2)
     await click('.single-column .editable-value')
     const input = host.querySelector<HTMLInputElement>('input[aria-label="name"]')!
@@ -141,6 +143,7 @@ describe('审核工作区资料展示与操作', () => {
       '11',
       expect.objectContaining({
         name: '核对后的店名',
+        cityName: '成都市',
         latitude: 30.75,
         longitude: 103.93,
         supportsDelivery: false,
@@ -229,7 +232,7 @@ describe('审核工作区资料展示与操作', () => {
     expect(host.querySelector<HTMLButtonElement>('.btn.primary')!.disabled).toBe(true)
     await click('.query-error button')
     expect(host.querySelector('.query-error')).toBeNull()
-    expect(host.querySelectorAll('.single-column tbody tr')).toHaveLength(11)
+    expect(host.querySelectorAll('.single-column tbody tr')).toHaveLength(12)
     expect(approveRequest).not.toHaveBeenCalled()
   })
 })

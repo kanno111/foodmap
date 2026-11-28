@@ -48,6 +48,7 @@
     <!-- COUNT和分页复用同一可见集合；EXISTS使同店多个命中标签仍只算一家店。 -->
     <sql id="visibleConditions">
         WHERE r.deleted_at IS NULL
+        <if test="query.hasCityFilter()">AND r.city_name = #{query.cityName}</if>
         <!-- 地图和区域列表共用视口条件，待定位/缺坐标不进入区域集合，边界包含。 -->
         <if test="query.west != null">
             AND r.needs_location = 0
@@ -81,6 +82,12 @@
                     AND t.tag LIKE #{query.keywordPattern} ESCAPE '!'))
         </if>
     </sql>
+
+    <select id="selectVisibleCities" resultType="string">
+        SELECT DISTINCT city_name FROM restaurants
+        WHERE deleted_at IS NULL AND city_name IS NOT NULL
+        ORDER BY city_name
+    </select>
 
     <!-- 独立抽取遍历完整合格ID；不沿用目录排序和10000条访问窗口。 -->
     <select id="selectPickerIds" resultType="long">

@@ -37,15 +37,32 @@ export function amapProxy(env: Record<string, string>): Plugin {
         if (local.pathname === '/v3/place/text') {
           const keyword = local.searchParams.get('keywords')?.trim()
           const page = local.searchParams.get('page') || '1'
-          if (!keyword || keyword.length > 100 || !/^[1-9]\d?$|^100$/.test(page)) {
+          const city = local.searchParams.get('city') || ''
+          const cityLimited = local.searchParams.get('citylimit') === 'true'
+          if (
+            !keyword ||
+            keyword.length > 100 ||
+            !/^(?:[1-9]\d?|100)$/.test(page) ||
+            (cityLimited &&
+              (city.length !== 6 ||
+                !/^(?:110000|120000|310000|500000|[1-9]\d(?:0[1-9]|[1-9]\d)00)$/.test(city)))
+          ) {
             fail(400, 'MAP_SEARCH_INVALID_QUERY')
             return
+          }
+          for (const name of [...local.searchParams.keys()]) {
+            const lower = name.toLowerCase()
+            if (lower === 'city' || lower === 'citylimit' || (cityLimited && lower === 's')) {
+              local.searchParams.delete(name)
+            }
           }
           local.searchParams.set('types', '050000')
           local.searchParams.set('offset', '10')
           local.searchParams.set('extensions', 'base')
-          local.searchParams.set('city', '成都市')
-          local.searchParams.set('citylimit', 'false')
+          local.searchParams.set('city', cityLimited ? city : '成都市')
+          local.searchParams.set('citylimit', String(cityLimited))
+          // 严格搜索直接读取 JSON，沿用 SDK 地点请求的通道以使用现有 JS API Key。
+          if (cityLimited) local.searchParams.set('s', 'rsv3')
         }
         const upstream = new URL(
           local.pathname.startsWith('/v4/map/styles')

@@ -1,6 +1,7 @@
 package com.foodmap.restaurant.dto;
 
 import com.foodmap.restaurant.policy.RestaurantSearchQueryPolicy;
+import com.foodmap.restaurant.policy.RestaurantCityPolicy;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
@@ -27,6 +28,18 @@ public class RestaurantListQuery {
     @NotNull
     @Size(max = 100, message = "搜索词最多100个字符")
     private String keyword = "";
+
+    @Size(max = 32, message = "城市名称最多32个字符")
+    private String cityName;
+
+    @AssertTrue(message = "请选择有效的地级行政区或直辖市")
+    public boolean isCityNameValid() {
+        return cityName == null || cityName.isEmpty() || RestaurantCityPolicy.isCanonical(cityName);
+    }
+
+    public boolean hasCityFilter() {
+        return cityName != null && !cityName.isEmpty();
+    }
 
     @NotNull
     @Pattern(regexp = "(?:[A-Z][A-Z0-9_]{0,31})?", message = "分类编码格式错误")

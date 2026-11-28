@@ -10,9 +10,10 @@ import com.foodmap.restaurant.exception.RestaurantErrorCode;
 import com.foodmap.restaurant.mapper.RestaurantPhotoMapper;
 import com.foodmap.restaurant.mapper.RestaurantRequestReviewMapper;
 import com.foodmap.restaurant.mapper.RestaurantWriteMapper;
+import com.foodmap.restaurant.policy.RestaurantCityPolicy;
 import com.foodmap.restaurant.support.RestaurantIdentifiers;
 import com.foodmap.restaurant.vo.RestaurantDecisionVo;
-import com.foodmap.restaurant.vo.RestaurantVo;
+import com.foodmap.restaurant.vo.RestaurantManagementVo;
 import com.foodmap.review.service.ReviewSubmissionLifecycleService;
 import com.foodmap.review.service.ReviewSubmissionPublicationService;
 import com.foodmap.security.service.CurrentActorService;
@@ -52,6 +53,16 @@ public class RestaurantRequestReviewService {
         if ("LINKED_EXISTING".equals(row.getApprovalMode())) {
             conflict();
         }
+        boolean alreadyApproved = "APPROVED".equals(row.getStatus());
+        String existingData = alreadyApproved ? row.getApprovedData() : row.getProposedData();
+        if (existingData != null) {
+            var existing = json.readTree(existingData);
+            RestaurantCityPolicy.retainForSameLocation(input, existing);
+            if ("PENDING".equals(row.getStatus()) && input.getCityName() == null
+                    && existing.path("cityName").isTextual()) {
+                throw new BusinessException(RestaurantErrorCode.INVALID_INPUT, "修改门店坐标时请确认所属城市");
+            }
+        }
         normalizeReview(input);
         // 先锁申请再锁附带点评；管理员只传最终店铺资料，不读取或修改私有点评正文。
         reviewPublication.validateApproval(
@@ -59,8 +70,8 @@ public class RestaurantRequestReviewService {
                 row.getSubmittedBy(),
                 row.getRequestType(),
                 input.getRestaurantType(),
-                "APPROVED".equals(row.getStatus()));
-        if ("APPROVED".equals(row.getStatus())) {
+                alreadyApproved);
+        if (alreadyApproved) {
             var saved = json.readValue(row.getApprovedData(), RestaurantApproveRequest.class);
             normalizeReview(saved);
             if (!saved.equals(input)) {
@@ -69,9 +80,9 @@ public class RestaurantRequestReviewService {
             return receipt(row, true);
         }
         pending(row);
-        RestaurantVo published;
+        RestaurantManagementVo published;
         if ("CREATE".equals(row.getRequestType())) {
-            published = writes.create(input).getRestaurant();
+            published = writes.create(input);
         } else {
             // 先前已锁住主行；READ_COMMITTED下此处读取的是锁定后的最新业务值，不做页面过期检测。
             var current = restaurants.selectManagementById(row.getRestaurantId());
@@ -79,12 +90,13 @@ public class RestaurantRequestReviewService {
                 conflict();
             }
             row.setBeforeData(json.writeValueAsString(snapshot(current)));
-            published = writes.update(row.getRestaurantId().toString(), input).getRestaurant();
+            published = writes.update(row.getRestaurantId().toString(), input);
         }
-        row.setRestaurantId(Long.parseLong(published.getId()));
+        row.setRestaurantId(Long.parseLong(published.getRestaurant().getId()));
         row.setApprovalMode("CREATE".equals(row.getRequestType()) ? "CREATED" : "UPDATED");
         publishPhotos(row);
         row.setReviewedBy(actor);
+        input.setCityName(published.getCityName());
         row.setApprovedData(json.writeValueAsString(input));
         if (requests.approve(row) != 1) {
             conflict();
@@ -251,6 +263,7 @@ public class RestaurantRequestReviewService {
                         ? null
                         : java.math.BigDecimal.valueOf(row.getPricePerPerson()));
         result.setAddress(row.getAddress());
+        result.setCityName(row.getCityName());
         result.setLatitude(row.getLatitude());
         result.setLongitude(row.getLongitude());
         result.setLocationConfirmed(!row.isNeedsLocation());

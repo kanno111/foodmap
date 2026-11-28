@@ -12,6 +12,7 @@ import java.time.Instant;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class RestaurantManagementEntity extends RestaurantEntity {
+    private String cityName;
     private Long createdBy;
     private Long updatedBy;
     private Instant deletedAt;

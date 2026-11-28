@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { searchAMapPlaces, type AMapPlace } from '../sdk/places'
 import { toErrorMessage } from '@/shared/lib/toErrorMessage'
+
+const SubmissionCityPicker = defineAsyncComponent(() => import('./SubmissionCityPicker.vue'))
 
 /** 只在用户主动搜索后读取高德门店；选择结果才向业务表单提供位置。 */
 const props = defineProps<{
   disabled?: boolean
   invalid?: boolean
   nameError?: string
+  chooseCity?: boolean
 }>()
 const emit = defineEmits<{ select: [place: AMapPlace] }>()
 // 名称即搜索词，由父表单统一保存，避免两个输入框的值相互脱节。
 const keyword = defineModel<string>({ required: true })
+const city = ref({ adcode: '510100', name: '成都市' })
 const places = ref<AMapPlace[]>([])
 const searching = ref(false)
 const searched = ref(false)
@@ -27,7 +31,7 @@ function cancel() {
   controller?.abort()
   searching.value = false
 }
-watch(keyword, () => {
+watch([keyword, city], () => {
   cancel()
   places.value = []
   searched.value = false
@@ -61,14 +65,15 @@ async function search(nextPage = 1) {
   searching.value = true
   page.value = nextPage
   try {
-    const result = await searchAMapPlaces(query, nextPage, request.signal)
+    const result = await (props.chooseCity
+      ? searchAMapPlaces(query, nextPage, request.signal, city.value)
+      : searchAMapPlaces(query, nextPage, request.signal))
     if (ticket !== revision || request.signal.aborted) return
     places.value = result.places
     total.value = result.total
     searched.value = true
   } catch (reason) {
-    if (ticket === revision && !request.signal.aborted)
-      error.value = toErrorMessage(reason)
+    if (ticket === revision && !request.signal.aborted) error.value = toErrorMessage(reason)
   } finally {
     if (ticket === revision) searching.value = false
   }
@@ -77,12 +82,7 @@ async function search(nextPage = 1) {
 function choose(place: AMapPlace) {
   if (props.disabled || searching.value) return
   // 与商户业务位置范围保持一致；异常结果不能替换表单中已有的有效位置。
-  if (
-    place.latitude < 3 ||
-    place.latitude > 54 ||
-    place.longitude < 73 ||
-    place.longitude > 136
-  ) {
+  if (place.latitude < 3 || place.latitude > 54 || place.longitude < 73 || place.longitude > 136) {
     error.value = '这家门店的位置不在支持范围内，请重新选择。'
     return
   }
@@ -95,9 +95,9 @@ function choose(place: AMapPlace) {
 
 <template>
   <div class="merchant-picker" :aria-busy="searching">
-    <label
-      >商户名称
-      <span class="search-row">
+    <div class="search-row" :class="{ 'with-city': chooseCity }">
+      <label>
+        商户名称
         <input
           v-model="keyword"
           type="search"
@@ -107,25 +107,24 @@ function choose(place: AMapPlace) {
           placeholder="输入商户名称，搜索高德门店"
           @keydown.enter.prevent.stop="search()"
         />
-        <button
-          type="button"
-          :disabled="disabled || searching"
-          @click="search()"
-        >
-          {{ searching ? '搜索中…' : '搜索门店' }}
-        </button>
-      </span>
-    </label>
+      </label>
+      <SubmissionCityPicker v-if="chooseCity" v-model="city" :disabled="disabled" />
+      <button type="button" :disabled="disabled || searching" @click="search()">
+        {{ searching ? '搜索中…' : '搜索门店' }}
+      </button>
+    </div>
     <small :class="{ 'name-error': invalid }">{{
       props.nameError || `${Array.from(keyword.trim()).length}/40 字`
     }}</small>
-    <p class="hint">
-      数据来自高德地图，请核对分店和地址后选择。选择后自动填写店名、地址及位置。
-    </p>
+    <p class="hint">数据来自高德地图，请核对分店和地址后选择。选择后自动填写店名、地址及位置。</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-else-if="searching" role="status">正在搜索高德门店…</p>
     <p v-else-if="searched && !places.length" role="status">
-      没有找到门店，请换个关键词。现有资料会保留。
+      {{
+        chooseCity
+          ? `在${city.name}没有找到门店，请换个关键词或切换城市。`
+          : '没有找到门店，请换个关键词。现有资料会保留。'
+      }}
     </p>
     <ul v-if="places.length" aria-label="高德门店搜索结果">
       <li v-for="place in places" :key="place.id">
@@ -179,14 +178,24 @@ small {
 label {
   display: grid;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 .search-row {
+  position: relative;
   display: flex;
   gap: 8px;
+  align-items: end;
+}
+.with-city label {
+  font-size: 13px;
+}
+.with-city input {
+  font-size: 1rem;
 }
 input {
+  box-sizing: border-box;
   min-width: 0;
-  flex: 1;
   width: 100%;
   padding: 10px;
   border: 1px solid #dedede;
@@ -206,6 +215,9 @@ button {
 button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.with-city > button {
+  padding-block: 10px;
 }
 .hint,
 li p {

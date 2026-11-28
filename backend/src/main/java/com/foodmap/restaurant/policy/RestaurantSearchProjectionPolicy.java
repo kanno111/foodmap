@@ -26,6 +26,7 @@ public final class RestaurantSearchProjectionPolicy {
 
         text(row.getName(), 40, false);
         text(row.getAddress(), 80, true);
+        require(row.getCityName() == null || RestaurantCityPolicy.isCanonical(row.getCityName()));
         require(Set.of("REGULAR", "CANTEEN").contains(nonNull(row.getRestaurantType())));
         if ("CANTEEN".equals(row.getRestaurantType())) {
             require(row.getCategoryCode() == null && row.getCategoryName() == null);
@@ -72,6 +73,7 @@ public final class RestaurantSearchProjectionPolicy {
         document.setPricePerPerson(row.getPricePerPerson());
         document.setPriceKind(row.getPriceKind());
         document.setAddress(row.getAddress());
+        document.setCityName(row.getCityName());
         document.setBusinessStatus(row.getBusinessStatus());
         document.setTags(List.copyOf(tags));
         document.setCoverPhotoId(coverPhotoId);

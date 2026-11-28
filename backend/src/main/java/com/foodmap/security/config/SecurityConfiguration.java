@@ -144,6 +144,7 @@ public class SecurityConfiguration {
                                         .requestMatchers(
                                                 HttpMethod.GET,
                                                 "/api/restaurant-categories",
+                                                "/api/restaurant-cities",
                                                 "/api/restaurants",
                                                 "/api/restaurants/{id}",
                                                 "/api/restaurants/map-points")

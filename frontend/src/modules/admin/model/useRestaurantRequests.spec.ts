@@ -47,6 +47,7 @@ const detail = (id: string): RequestDetail => ({
   application: item(id),
   proposed: {
     name: '真实申请' + id,
+    cityName: '成都市',
     supportsDineIn: false,
     pricePerPerson: null,
     categoryCode: 'OTHER',
@@ -297,7 +298,7 @@ describe('真实申请查询状态', () => {
     expect(state.decisionError.value).toBe('网络中断')
     expect(approveRequest).toHaveBeenCalledWith(
       '11',
-      expect.objectContaining({ name: '修订名称', pricePerPerson: null }),
+      expect.objectContaining({ name: '修订名称', cityName: '成都市', pricePerPerson: null }),
       'request-reader',
     )
     expect(vi.mocked(approveRequest).mock.calls[0]![1]).toMatchObject({

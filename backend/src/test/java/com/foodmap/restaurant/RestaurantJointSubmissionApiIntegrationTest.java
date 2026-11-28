@@ -328,6 +328,35 @@ class RestaurantJointSubmissionApiIntegrationTest {
     }
 
     @Test
+    void prefectureCityIsStoredFromProposalAndSurvivesApprovalReplay() throws Exception {
+        var input = shop();
+        input.put("name", "都江堰分店");
+        input.put("cityName", "都江堰市");
+        submit(input).andExpect(status().isBadRequest());
+
+        input.put("cityName", "　成都市 ");
+        String id = data(submit(input).andExpect(status().isCreated()).andReturn()).path("id").asString();
+        call(get("/api/me/restaurant-requests/" + id), owner, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.proposed.cityName").value("成都市"));
+        call(get("/api/admin/restaurant-requests/" + id), admin, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.proposed.cityName").value("成都市"));
+
+        var oldReviewer = approval(input);
+        oldReviewer.remove("cityName");
+        var moved = new LinkedHashMap<>(oldReviewer);
+        moved.put("latitude", new BigDecimal("29.56"));
+        approve(id, moved).andExpect(status().isBadRequest());
+        var published = data(approve(id, oldReviewer).andExpect(status().isOk()).andReturn());
+        assertThat(jdbc.queryForObject("SELECT city_name FROM restaurants WHERE id = ?", String.class,
+                published.path("restaurantId").asString())).isEqualTo("成都市");
+        call(get("/api/admin/restaurant-requests/" + id), admin, null)
+                .andExpect(jsonPath("$.data.approved.cityName").value("成都市"));
+        approve(id, oldReviewer).andExpect(status().isOk()).andExpect(jsonPath("$.data.replayed").value(true));
+    }
+
+    @Test
     void preservesLegacyHashAndNullReviewBehaviorWithoutAllowingLaterAttachment() throws Exception {
         var input = shop();
         var first =
@@ -350,6 +379,9 @@ class RestaurantJointSubmissionApiIntegrationTest {
                                 "SELECT HEX(request_hash) FROM restaurant_change_requests",
                                 String.class))
                 .isEqualToIgnoringCase(legacyHash);
+        assertThat(jdbc.queryForObject(
+                "SELECT JSON_CONTAINS_PATH(proposed_data, 'one', '$.cityName') FROM restaurant_change_requests",
+                Integer.class)).isZero();
         input.put("review", null);
         assertThat(data(submit(input).andExpect(status().isCreated()).andReturn()))
                 .isEqualTo(first);

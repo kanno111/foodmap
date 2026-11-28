@@ -1,6 +1,6 @@
 # Elasticsearch商户搜索索引结构
 
-物理索引`restaurant-search-v004`，别名`restaurant-search`。每家普通餐厅或食堂对应一份文档，`_id`为商户ID的十进制字符串，正文id为long。字段定义来源于[索引定义JSON](../../backend/src/main/resources/elasticsearch/restaurant-search-v004.json)。
+物理索引定义为 `restaurant-search-v005`，业务别名为 `restaurant-search`。每家普通餐厅或食堂对应一份文档，`_id`为商户ID的十进制字符串，正文id为long。字段定义见[索引定义JSON](../../backend/src/main/resources/elasticsearch/restaurant-search-v005.json)，存量升级见[城市筛选发布说明](../operations/backfill-restaurant-city.md#接入首页和-elasticsearch)。
 
 ## 文档边界
 
@@ -10,10 +10,10 @@
 
 | 项目 | 当前定义 | 含义 |
 | --- | --- | --- |
-| 物理索引 | `restaurant-search-v004` | 固定当前字段与分词配置版本 |
+| 物理索引 | `restaurant-search-v005` | 固定当前字段与分词配置版本 |
 | 业务别名 | `restaurant-search` | 业务访问名称 |
 | schema标识 | `foodmap.restaurant-search` | mapping的`_meta.schema`；仅改名前的`ginkgo.restaurant-search`作为兼容标识接受，其余结构与版本仍严格核对 |
-| 写索引标记 | `is_write_index=true` | 别名当前唯一指向v004 |
+| 写索引标记 | `is_write_index=true` | 升级后别名唯一指向 v005 |
 | 主分片 | 1 | 主分片数 |
 | 副本 | 0 | 副本数 |
 | 刷新间隔 | `1s` | 刷新周期 |
@@ -40,6 +40,7 @@
 | 字段 | ES类型 | 来源 | 规则与用途 |
 | --- | --- | --- | --- |
 | `categoryCode` | `keyword` | `restaurants.category_code` | 普通餐厅使用真实分类编码；食堂固定为空，不能改成OTHER |
+| `cityName` | `keyword` | `restaurants.city_name` | 地级行政区或直辖市标准全称，按原字符串精确筛选，未确认则省略 |
 | `restaurantType` | `keyword` | `restaurants.restaurant_type` | REGULAR/CANTEEN；餐厅类型筛选 |
 | `supportsDineIn` | `boolean` | 同名业务字段 | true支持、false不支持、null未知 |
 | `supportsDelivery` | `boolean` | 同名业务字段 | true支持、false不支持、null未知 |
@@ -99,6 +100,7 @@
   "restaurantType": "REGULAR",
   "tags": ["学生聚餐"],
   "address": "示意地址",
+  "cityName": "成都市",
   "supportsDineIn": true,
   "supportsDelivery": null,
   "pricePerPerson": 40,

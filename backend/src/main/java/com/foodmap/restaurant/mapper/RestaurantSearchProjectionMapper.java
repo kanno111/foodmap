@@ -16,7 +16,7 @@ public interface RestaurantSearchProjectionMapper {
             """
             <script>
             SELECT r.id,r.search_projection_version AS projection_version,r.name,r.category_code,c.name AS category_name,r.restaurant_type,
-              r.supports_dine_in,r.supports_delivery,r.price_per_person,r.price_kind,r.address,
+              r.supports_dine_in,r.supports_delivery,r.price_per_person,r.price_kind,r.address,r.city_name,
               r.latitude,r.longitude,r.needs_location,r.business_status,(r.deleted_at IS NOT NULL) AS deleted,
               COALESCE(s.review_count,0) AS review_count,COALESCE(s.participant_count,0) AS participant_count,
               COALESCE(s.overall_score_sum,0) AS overall_score_sum,
