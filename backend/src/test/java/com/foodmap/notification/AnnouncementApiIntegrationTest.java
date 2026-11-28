@@ -923,6 +923,36 @@ class AnnouncementApiIntegrationTest {
                 .contentType("application/json").content(body));
     }
 
+    @Test
+    void directoryShowsOldestRewardTypesBeforeLaterRegistrations() throws Exception {
+        var types = List.of("FIRST_REVIEW", "REGISTRATION_INVITE", "OTHER", "FIRST_REVIEW",
+                "OTHER", "REGISTRATION_INVITE", "FIRST_REVIEW");
+        // 模拟先登记近期奖励、后来才补登记历史奖励。
+        for (int index = types.size() - 1; index >= 0; index--) {
+            long announcement = Long.parseLong(id(publishTargeted(other, UUID.randomUUID(), List.of("11"))
+                    .andExpect(status().isOk())));
+            jdbc.update("UPDATE notification_announcements SET published_at = ? WHERE id = ?",
+                    "2026-11-" + (10 + index) + " 00:00:00", announcement);
+            jdbc.update("""
+                    INSERT INTO user_manual_reward_records
+                        (user_id, reward_type, reward_note, source_announcement_id, recorded_by)
+                    VALUES (11, ?, 'test fixture', ?, 22)
+                    """, types.get(index), announcement);
+        }
+
+        mvc.perform(get("/api/admin/users").param("keyword", "notice_11")
+                        .header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].rewardSummary.types")
+                        .value(org.hamcrest.Matchers.contains(types.subList(0, 5).toArray(String[]::new))))
+                .andExpect(jsonPath("$.data.records[0].rewardSummary.hasMore").value(true));
+        mvc.perform(get("/api/admin/users").param("keyword", "notice_22")
+                        .header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].rewardSummary.types").isEmpty())
+                .andExpect(jsonPath("$.data.records[0].rewardSummary.hasMore").value(false));
+    }
+
     private ResultActions publishTargeted(String token, UUID uuid, List<String> recipients)
             throws Exception {
         String request = new tools.jackson.databind.ObjectMapper().writeValueAsString(

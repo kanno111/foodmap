@@ -47,12 +47,14 @@
 **响应**
 
 ```json
-{"records":[{"id":"22","username":"校园食客","hasAvatar":true,"reviewCount":4,"approvedSubmissionCount":2,"invitedRegistrationCount":1,"mutedAt":null,"canModerate":true}],"total":1,"page":1,"pageSize":20,"totalPages":1}
+{"records":[{"id":"22","username":"校园食客","hasAvatar":true,"reviewCount":4,"approvedSubmissionCount":2,"invitedRegistrationCount":1,"rewardSummary":{"types":["FIRST_REVIEW"],"hasMore":false},"mutedAt":null,"canModerate":true}],"total":1,"page":1,"pageSize":20,"totalPages":1}
 ```
 
 `hasAvatar` 表示有绑定头像，可以通过[头像接口](#avatar)读取。点评数按仍保留的正式点评计，同一店的历史点评各算一条，待审附带点评不计入。投稿审核通过数包括通过的新店投稿、资料纠错和已收录关联。空结果返回空数组。
 
 `invitedRegistrationCount` 统计使用该用户个人邀请码成功注册的账号数。
+
+`rewardSummary.types` 按从旧到新返回最多五条人工奖励的类型，可重复出现。优先按来源公告发布时间排列，来源缺失时按登记时间，相同时间按奖励记录 ID 升序。超过五条时 `hasMore` 为 true，没有奖励时类型为空数组。
 
 `mutedAt` 为当前禁言开始时间，未禁言返回 null。`canModerate` 表示当前账号可进行禁言操作。
 

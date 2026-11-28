@@ -20,6 +20,8 @@ h1 {
 }
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   margin-bottom: 21px;
 }
@@ -75,6 +77,21 @@ button:hover:enabled {
   color: white;
   font-weight: 600;
 }
+.toolbar .primary {
+  min-height: 42px;
+}
+.reward-summary-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 15px;
+  margin: 0 0 0 auto;
+  color: var(--admin-secondary);
+  font-size: 13px;
+}
+.reward-summary-legend strong {
+  color: var(--admin-text);
+  font-variant-numeric: tabular-nums;
+}
 .announcement-primary {
   min-height: 36px;
   white-space: nowrap;
@@ -127,6 +144,7 @@ button.announcement-primary:hover:enabled {
 }
 table {
   width: 100%;
+  min-width: 695px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
@@ -148,9 +166,36 @@ td {
   font-variant-numeric: tabular-nums;
 }
 .user-metric,
+.user-rewards,
 .user-action {
-  width: 22%;
+  box-sizing: border-box;
   text-align: right;
+}
+.user-metric {
+  width: 13%;
+}
+.user-submissions {
+  width: 17%;
+}
+.user-rewards {
+  width: 150px;
+  white-space: nowrap;
+}
+.reward-summary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  color: var(--admin-text);
+  text-decoration: none;
+}
+.reward-summary-link:hover,
+.reward-summary-link:focus-visible {
+  color: var(--admin-accent-text);
+  text-decoration: underline;
+}
+.user-rewards .muted {
+  color: var(--admin-muted);
 }
 .user-select {
   width: 47px;
@@ -465,6 +510,10 @@ td.user-action {
   .toolbar {
     margin-bottom: 14px;
   }
+  .reward-summary-legend {
+    width: 100%;
+    margin-left: 0;
+  }
   .search {
     flex: 1;
   }
@@ -475,9 +524,6 @@ td.user-action {
   }
   .user-select {
     width: 28px;
-  }
-  .user-table-scroll table {
-    min-width: 490px;
   }
   .user-metric {
     width: 15%;

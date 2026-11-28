@@ -27,6 +27,15 @@ public interface UserManualRewardMapper {
     long count(long user);
 
     @Select("""
+            <script>
+            SELECT id, user_id, reward_type, source_announcement_id, recorded_at
+            FROM user_manual_reward_records WHERE user_id IN
+            <foreach collection="users" item="user" open="(" separator="," close=")">#{user}</foreach>
+            </script>
+            """)
+    List<ManualRewardEntry.SummaryCandidate> summaryCandidates(@Param("users") List<Long> users);
+
+    @Select("""
             SELECT id, reward_type, reward_note, source_announcement_id, recorded_at
             FROM user_manual_reward_records WHERE user_id = #{user}
             ORDER BY recorded_at DESC, id DESC LIMIT #{limit} OFFSET #{offset}

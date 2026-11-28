@@ -21,11 +21,14 @@ public final class AdminUserViews {
         private long reviewCount;
         private long approvedSubmissionCount;
         private long invitedRegistrationCount;
+        private RewardSummary rewardSummary;
         private Instant mutedAt;
         private boolean canModerate;
     }
 
     public record Mute(String id, Instant mutedAt) {}
+
+    public record RewardSummary(List<ManualRewardType> types, boolean hasMore) {}
 
     public record RegistrationSource(String kind, String inviterName) {}
 

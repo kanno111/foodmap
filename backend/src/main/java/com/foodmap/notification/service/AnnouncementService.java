@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -34,21 +35,25 @@ import java.util.stream.Collectors;
 @PreAuthorize("isAuthenticated()")
 public class AnnouncementService {
     private static final int RECIPIENT_PAGE_SIZE = 10;
+    private static final int SOURCE_BATCH_SIZE = 500;
     private final AnnouncementMapper announcements;
     private final CurrentActorService actors;
     private final NotificationChangeService changes;
     private final UserDirectoryService users;
     private final UserManualRewardService rewards;
 
-    /** 只为管理端奖励历史补充来源标题和撤回状态。 */
+    /** 为管理端奖励记录补充来源公告信息，批量限制每次查询的 ID 数。 */
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     public Map<Long, AnnouncementViews.RewardSource> rewardSources(List<Long> ids) {
-        if (ids.isEmpty()) {
-            return Map.of();
+        var result = new HashMap<Long, AnnouncementViews.RewardSource>();
+        for (int start = 0; start < ids.size(); start += SOURCE_BATCH_SIZE) {
+            for (var source : announcements.rewardSources(
+                    ids.subList(start, Math.min(start + SOURCE_BATCH_SIZE, ids.size())))) {
+                result.put(source.id(), source);
+            }
         }
-        return announcements.rewardSources(ids).stream()
-                .collect(Collectors.toMap(AnnouncementViews.RewardSource::id, source -> source));
+        return result;
     }
 
     /** 使用发布人+UUID去重；唯一键竞争结束后核验摘要，失败整笔回滚。 */

@@ -26,6 +26,10 @@ public class UserManualRewardService {
         return rewards.count(user);
     }
 
+    public List<ManualRewardEntry.SummaryCandidate> summaryCandidates(List<Long> users) {
+        return users.isEmpty() ? List.of() : rewards.summaryCandidates(users);
+    }
+
     public List<ManualRewardEntry> page(long user, int limit, long offset) {
         return rewards.page(user, limit, offset);
     }

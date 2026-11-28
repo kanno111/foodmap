@@ -26,7 +26,7 @@ public final class AnnouncementViews {
 
     public record Recipient(String id, String username) {}
 
-    public record RewardSource(long id, String title, boolean withdrawn) {}
+    public record RewardSource(long id, String title, boolean withdrawn, Instant publishedAt) {}
 
     /** 管理员列表只返回有限预览，完整名单通过详情读取。 */
     @Data

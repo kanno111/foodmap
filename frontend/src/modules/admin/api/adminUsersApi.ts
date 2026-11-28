@@ -9,6 +9,7 @@ export interface AdminUser {
   reviewCount: number
   approvedSubmissionCount: number
   invitedRegistrationCount?: number
+  rewardSummary?: { types: ManualRewardType[]; hasMore: boolean }
   mutedAt: string | null
   canModerate: boolean
 }

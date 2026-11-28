@@ -8,4 +8,7 @@ public record ManualRewardEntry(
         ManualRewardType rewardType,
         String rewardNote,
         long sourceAnnouncementId,
-        Instant recordedAt) {}
+        Instant recordedAt) {
+    public record SummaryCandidate(long id, long userId, ManualRewardType rewardType,
+            long sourceAnnouncementId, Instant recordedAt) {}
+}

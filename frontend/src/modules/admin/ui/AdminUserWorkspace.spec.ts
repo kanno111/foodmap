@@ -29,6 +29,13 @@ function user(id: string, username: string): AdminUser {
     reviewCount: 0,
     approvedSubmissionCount: 0,
     invitedRegistrationCount: id === '11' ? 2 : undefined,
+    rewardSummary:
+      id === '11'
+        ? {
+            types: ['FIRST_REVIEW', 'REGISTRATION_INVITE', 'OTHER', 'FIRST_REVIEW', 'OTHER'],
+            hasMore: true,
+          }
+        : { types: [], hasMore: false },
     hasAvatar: false,
     mutedAt: null,
     canModerate: true,
@@ -122,6 +129,27 @@ describe('用户管理发送定向公告', () => {
     expect(profileLink).not.toBeNull()
     profileLink?.click()
     await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/admin/users/11'))
+  })
+
+  it('领奖情况保留服务端顺序，超出用省略号并打开完整奖励记录', async () => {
+    const router = await mountWorkspace()
+
+    const heading = host.querySelector('thead .user-invites')?.nextElementSibling
+    expect(heading?.textContent?.trim()).toBe('领奖情况')
+    const preview = host.querySelector<HTMLAnchorElement>('tbody tr .reward-summary-link')
+    expect(Array.from(preview?.children ?? [], (digit) => digit.textContent?.trim())).toEqual([
+      '1',
+      '2',
+      '3',
+      '1',
+      '3',
+      '…',
+    ])
+    expect(host.querySelector('tbody tr:nth-child(2) .user-rewards')?.textContent?.trim()).toBe('—')
+    preview?.click()
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.fullPath).toBe('/admin/users/11?tab=rewards'),
+    )
   })
 
   function fill(field: HTMLInputElement | HTMLTextAreaElement, value: string) {

@@ -27,7 +27,7 @@ public interface AnnouncementMapper {
 
     @Select("""
             <script>
-            SELECT id, title, status = 'TARGETED_WITHDRAWN' AS withdrawn
+            SELECT id, title, status = 'TARGETED_WITHDRAWN' AS withdrawn, published_at
             FROM notification_announcements WHERE audience = 'TARGETED' AND id IN
             <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
             </script>

@@ -10,6 +10,7 @@ import {
   manualRewardLabels,
   normalizeAnnouncementText,
   type AnnouncementRecipient,
+  type ManualRewardType,
 } from '@/modules/announcement'
 import {
   fetchAdminUsers,
@@ -70,6 +71,11 @@ const pageSelectionExceedsLimit = computed(
   () => selectedCount.value + visibleUsers.value.length - selectedOnPage.value > recipientLimit,
 )
 const number = new Intl.NumberFormat('zh-CN')
+const rewardCodes = {
+  FIRST_REVIEW: 1,
+  REGISTRATION_INVITE: 2,
+  OTHER: 3,
+} satisfies Record<ManualRewardType, number>
 const pageNumbers = computed(() => {
   const total = Math.min(result.value?.totalPages ?? 0, 1_000_000)
   const first = Math.max(1, Math.min(page.value - 1, total - 2))
@@ -241,6 +247,11 @@ onBeforeUnmount(() => {
             />
           </label>
           <button class="primary" type="submit">查询</button>
+          <p id="reward-summary-legend" class="reward-summary-legend">
+            <span><strong>1</strong> 首次点评</span>
+            <span><strong>2</strong> 邀请注册</span>
+            <span><strong>3</strong> 其他</span>
+          </p>
         </form>
         <p v-if="announcementNotice" class="announcement-notice" role="status">
           {{ announcementNotice }}
@@ -286,6 +297,9 @@ onBeforeUnmount(() => {
                   <th scope="col" class="user-metric">点评数</th>
                   <th scope="col" class="user-metric user-submissions">投稿审核通过数</th>
                   <th scope="col" class="user-metric user-invites">邀请注册数</th>
+                  <th scope="col" class="user-rewards" aria-describedby="reward-summary-legend">
+                    领奖情况
+                  </th>
                   <th scope="col" class="user-action">操作</th>
                 </tr>
               </thead>
@@ -329,6 +343,21 @@ onBeforeUnmount(() => {
                         ? '—'
                         : number.format(user.invitedRegistrationCount)
                     }}
+                  </td>
+                  <td class="user-rewards">
+                    <AppLink
+                      v-if="user.rewardSummary?.types.length"
+                      class="reward-summary-link"
+                      :to="{ path: `/admin/users/${user.id}`, query: { tab: 'rewards' } }"
+                      :aria-label="`查看${user.username}的奖励情况`"
+                      title="查看完整奖励记录"
+                    >
+                      <span v-for="(type, index) in user.rewardSummary.types" :key="index">{{
+                        rewardCodes[type]
+                      }}</span>
+                      <span v-if="user.rewardSummary.hasMore" class="muted">…</span>
+                    </AppLink>
+                    <span v-else class="muted">—</span>
                   </td>
                   <td class="user-action">
                     <button
